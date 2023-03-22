@@ -28,20 +28,37 @@ import re
 import typing as _typing
 import decimal
 
+use_natsort = True
+try: # It will function without this sorting
+    import natsort
+except ImportError:
+    use_natsort = False
+    print("WARNING: Module natsort not installed, this module is not required but strongly recommended. pip install natsort")
+
+
 __user_agent__ = 'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.93 Safari/537.36'
 
-def adv_glob(arg_paths: _typing.List, arg_recursive: bool = False, arg_supress_errors: bool = False, arg_debug: bool = False):
+def adv_glob(arg_paths: _typing.Union[_typing.List[str], str], arg_recursive: bool = False, arg_supress_errors: bool = False, arg_debug: bool = False) -> _typing.List[str]:
     ''' Returns a list of files (with full path) that matches a list of filters.
         Example arg_paths: c:\\a.txt c:\\a\\folder1 folder* folder1 folder2\\ folder1\\* fodler5 non-existant_file.txt folder2 *.log
     
-        # TODO: Rewrite this function
-        
+        # TODO: Rewrite this function with https://docs.python.org/3/library/pathlib.html#pathlib.Path
+        # TODO: If I give "file1.mp4 *.mp4" This should expand the *.mp4 (which include file1.mp4) but only handle that file once.
+        # This is for doing something on many files but prio the first one
     '''
 
     _list_of_urls = []
-    # Create the file filters
     file_filters: _typing.Dict[str, _typing.Set] = {}
-    for i in arg_paths:
+    arg_paths_list: list
+    if isinstance(arg_paths, str):
+        arg_paths_list = [arg_paths]
+    elif isinstance(arg_paths, list):
+        arg_paths_list = arg_paths
+    else:
+        raise ValueError(f"argument arg_paths is: {type(arg_paths)} and I can only handle str or list")
+    
+    # arg_paths_list = arg_paths # TODO: Investigate
+    for i in arg_paths_list:
         # file_filters becomes "*.*" if you give them without any filter
         if i.startswith('http'):
             debug("URL: " + str(i), not arg_debug)
@@ -185,9 +202,9 @@ def _file_and_line_number(arg_num_function_away: int = 2) -> _inspect.Traceback:
     info = _inspect.getframeinfo(frame)                              # info.filename, info.function, info.lineno
     return info
 
-def log_print(arg_string: str, arg_print_to_screen: bool = True, arg_type: str = "DEBUG", arg_file = sys.stdout, arg_force_flush: bool = False, arg_num_function_away: int = 2) -> None:
+def log_print(arg_string: str, arg_actually_log: bool = True, arg_type: str = "DEBUG", arg_file = sys.stdout, arg_force_flush: bool = False, arg_num_function_away: int = 2) -> None:
     ''' Used for outputing code trace while development '''
-    if arg_print_to_screen:
+    if arg_actually_log:
         info = _file_and_line_number(arg_num_function_away)
         function_name = info.function
         if function_name == "<module>":
@@ -197,7 +214,6 @@ def log_print(arg_string: str, arg_print_to_screen: bool = True, arg_type: str =
         log_line = f"{arg_type}: {function_name}:{info.lineno} --> {arg_string}"
 
         timestamped_print(arg_str=log_line, arg_file=arg_file, arg_force_flush=arg_force_flush)
-
 
 _ExpType = _typing.TypeVar('_ExpType')
 def debug(exp: _ExpType, arg_supress_output: bool = False, arg_out_handle = sys.stderr) -> _ExpType:
@@ -295,18 +311,27 @@ def dict_get_key_from_value(arg_dict: dict, arg_value):
     return None
 
 def dict_sort(arg_dict: dict, arg_sort_by_value: bool = False, arg_desc: bool = False) -> dict:
-    ''' Sorts a dictionary '''
+    ''' Returns a new sorted dictionary '''
     res = {}
+    sort_function = natsort.natsorted if use_natsort else sorted
     if arg_sort_by_value:
-        res = dict(sorted(arg_dict.items(), key=lambda item: item[1])) # Sort by value ( lower -> higher )
+        res = dict(sort_function(arg_dict.items(), key=lambda item: item[1])) # Sort by value ( lower -> higher )
     else:
-        _list = sorted(arg_dict.items())
+        _list = sort_function(arg_dict.items())
         for _t in _list:
             res[_t[0]] = _t[1]
 
     if arg_desc:
         res = {k: res[k] for k in reversed(res)} # Just reverse the dict
 
+    return res
+
+def dict_move_to_start(arg_dict: dict, arg_key) -> dict:
+    ''' Returns a new dict with the given key as the first key '''
+    res = {}
+    res[arg_key] = arg_dict.pop(arg_key)
+    for k, v in arg_dict.items():
+        res[k] = v
     return res
 
 def dict_to_json_string_pretty(arg_dict: dict, arg_as_html: bool = False) -> str:
@@ -516,7 +541,7 @@ def text_read_whole_file(arg_filename_or_url: str) -> _typing.Union[str, None]:
 
     if not os.path.exists(arg_filename_or_url):
         return None
-    with io.open(arg_filename_or_url, "r", encoding="utf-8", newline="\n") as fp:
+    with io.open(file=arg_filename_or_url, mode="r", encoding="utf-8", newline="\n") as fp:
         r = fp.read()
     return r
 
@@ -524,18 +549,22 @@ def math_nthroot(x: _typing.Union[int, float, decimal.Decimal], n: _typing.Union
     ''' Returns the n:th root of x. Example: x=729, n=3 --> 9 '''
     return decimal.Decimal(pow(decimal.Decimal(x), decimal.Decimal(1)/decimal.Decimal(n)))
 
-def list_from_str(arg_str: _typing.Union[None, str, _typing.List, _typing.Set, _typing.Tuple], arg_re_splitter: str = ' |,|;|:|[+]|[-]|[|]') -> _typing.List[str]:
-    ''' Take a str and try to convert into a list of str in a smart way '''
+def list_from_str(arg_str: _typing.Union[None, str, _typing.List, _typing.Set, _typing.Tuple], arg_re_splitter: str = ' |,|;|:|[+]|[-]|[|]|[\n]') -> _typing.Union[_typing.List[str], None]:
+    ''' Take a str and try to convert into a list of str in a smart way.
+    Returns None if something breaks. '''
+    
     if arg_str is None:
         return []
     if isinstance(arg_str, list):
         res = arg_str
     elif isinstance(arg_str, (set, tuple)):
         res = list(arg_str)
-    else:
-        arg_str = str(arg_str)
+    elif isinstance(arg_str, str):
         res = re.split(arg_re_splitter, arg_str)
-
+    else:
+        print(f"ERROR! arg_str is of type: {type(arg_str)} which I cannot handle!")
+        return None
+    
     res = [x for x in res if x]
     return res
 

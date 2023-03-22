@@ -7,7 +7,7 @@ With the following mods:
 docstrings
 type hints
 default values
-each keypress adds the timeout so we won't interupt the user when he/she is typing
+each keypress adds time to the timeout so we won't interupt the user when he/she is typing
 """
 
 __version__ = 230312150647

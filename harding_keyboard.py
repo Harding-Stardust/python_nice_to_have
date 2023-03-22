@@ -315,7 +315,7 @@ def mouse_left_doubleclick_SendMessage(arg_hwnd: HWND, arg_pos: Tuple[int, int],
     _win32api.SendMessage(arg_hwnd, _win32con.WM_LBUTTONDBLCLK, _win32con.MK_LBUTTON, _lparam)
 
 def mouse_SendMessage(arg_hwnd: HWND, arg_pos: Tuple[int, int], arg_direction: str = 'down', arg_mouse_button: str = 'left', arg_move_mouse: bool = True, arg_debug: bool = False):
-    ''' Send a mouse down message. Default is left mouse button. '''
+    ''' Send a mouse message. Default is left mouse button. '''
     _MK = _win32con.MK_LBUTTON if arg_mouse_button.lower() == 'left' else _win32con.MK_RBUTTON
     _WM = _win32con.WM_LBUTTONDOWN if arg_mouse_button.lower() == 'left' else _win32con.WM_RBUTTONDOWN
     
@@ -436,7 +436,7 @@ def key_hold_SendMessage(arg_hwnd: HWND, arg_virtual_key: virtual_key, arg_hold_
     return True
 
 def key_type_message_SendMessage(arg_hwnd: HWND, arg_message: key_type, arg_seconds_between_keys: float = 0.050, arg_debug: bool = False) -> None:
-    ''' Send a string of characters as a sequance of window messages '''
+    ''' Send a string of characters as a sequence of window messages '''
     res = True
 
     if isinstance(arg_message, int):
