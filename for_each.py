@@ -33,7 +33,11 @@ def do_exec(command: str, arg_file: str, arg_index: int, number_of_files: int, s
         time_elapsed = time.time() - started
         estimated_total_time = time_elapsed / percent_done
         with open(print_progress_to_file, "w", encoding='utf8', newline='\n') as fdesc:
-            fdesc.write(hu.timestamped_line(f"File {arg_index} / {number_of_files} ({percent_done * 100:.3f}%) estimated {(estimated_total_time - time_elapsed + 1)/60:0.0f}m left. Have been running for {time_elapsed:0.0f} seconds. File: \"{arg_file}\""))
+            hu.log_print(f"File {arg_index} / {number_of_files} ({percent_done * 100:.3f}%) estimated {(estimated_total_time - time_elapsed + 1)/60:0.0f}m left. Have been running for {time_elapsed:0.0f} seconds. Current file: \"{arg_file}\"",
+                arg_type="PROGRESS",
+                arg_file=fdesc,
+                arg_force_flush=True,
+                )
 
     command = command.replace("%file", arg_file)
     os.system(command)
@@ -42,7 +46,7 @@ if __name__ == '__main__':
     import sys
     import argparse
     
-    parser = argparse.ArgumentParser(description=f"python {sys.argv[0]} \"string to be system() by Python\" file_1 [file_2 ... file_n] Example: python {sys.argv[0]} \"echo I will work on the file: \\\"%file\\\"\" *.py")
+    parser = argparse.ArgumentParser(description=f"python {sys.argv[0]} \"string to be os.system() by Python\" file_1 [file_2 ... file_n] Example: python {sys.argv[0]} \"echo I will work on the file: \\\"%file\\\"\" *.py")
     parser.add_argument("-s", "--subfolders", action="store_true", dest="check_subfolders", help="Look in subfolders. Default: False", default=False)
     parser.add_argument("-f", "--file", action="store_true", dest="file_list", help="The file given contains filenames to work on. Default: False", default=False)
     parser.add_argument("-p", "--progress", dest="progress_file", help="Write current progress to this file before every file. This will cause many disk writes.", default=None)

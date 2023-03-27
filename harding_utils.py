@@ -259,6 +259,7 @@ def debug(exp: _ExpType, arg_supress_output: bool = False, arg_out_handle = sys.
     return exp
 
 def console_color(arg_string, arg_color = "OKGREEN") -> str:
+    ''' Returns a new string with console marker at the start and at the end '''
     _console_color = {}
     _console_color["HEADER"] = '\033[95m'
     _console_color["OKBLUE"] = '\033[94m'
@@ -444,6 +445,8 @@ def smart_filesystem_safe_path(arg_file_path: str, arg_allow_swedish_chars: bool
     res = res.replace("[", arg_replacement_char)
     res = res.replace("]", arg_replacement_char)
     res = res.replace("\t", "")
+    res = res.replace(".–", arg_replacement_char)
+    res = res.replace("–.", arg_replacement_char)
     while res != res.replace('__', arg_replacement_char):
         res = res.replace('__', arg_replacement_char)
     while res != res.replace('  ', arg_replacement_char):
@@ -525,7 +528,7 @@ def concat_files(arg_folder: str, arg_list_of_files: list, arg_dest_file: str):
 
 def text_write_whole_file(arg_filename: str, arg_text: str) -> bool:
     ''' Opens a text file (as UTF-8 with newline='\\n') and write the argument text to that file and then close the file  '''
-    with io.open(arg_filename, "w", encoding="utf-8", newline="\n") as fp:
+    with io.open(arg_filename, mode="w", encoding="utf-8", newline="\n") as fp:
         fp.write(arg_text)
     return True
 
@@ -549,7 +552,7 @@ def math_nthroot(x: _typing.Union[int, float, decimal.Decimal], n: _typing.Union
     ''' Returns the n:th root of x. Example: x=729, n=3 --> 9 '''
     return decimal.Decimal(pow(decimal.Decimal(x), decimal.Decimal(1)/decimal.Decimal(n)))
 
-def list_from_str(arg_str: _typing.Union[None, str, _typing.List, _typing.Set, _typing.Tuple], arg_re_splitter: str = ' |,|;|:|[+]|[-]|[|]|[\n]') -> _typing.Union[_typing.List[str], None]:
+def list_from_str(arg_str: _typing.Union[str, _typing.List, _typing.Set, _typing.Tuple, None], arg_re_splitter: str = ' |,|;|:|[+]|[-]|[|]|[\n]|[\r]') -> _typing.Union[_typing.List[str], None]:
     ''' Take a str and try to convert into a list of str in a smart way.
     Returns None if something breaks. '''
     

@@ -33,7 +33,7 @@ def file_work(arg_file: str, arg_update: bool = False) -> str:
     logger.debug(f"TODO: Work here on {arg_file}")
     if arg_update:
         logger.debug("TODO: it should be an update")
-    return (f"{arg_file} is done!")
+    return f"{arg_file} is done!"
 
 def module_work(arg_files: list, arg_update: bool = False) -> list:
     ''' This is all the work the module is doing '''
