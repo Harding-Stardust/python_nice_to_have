@@ -25,7 +25,7 @@ import inspect as _inspect
 import json
 import glob
 import re
-import typing as _typing
+from typing import Union, Dict, List, Tuple, Set, TypeVar, Any
 import decimal
 
 use_natsort = True
@@ -38,7 +38,7 @@ except ImportError:
 
 __user_agent__ = 'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.93 Safari/537.36'
 
-def adv_glob(arg_paths: _typing.Union[_typing.List[str], str], arg_recursive: bool = False, arg_supress_errors: bool = False, arg_debug: bool = False) -> _typing.List[str]:
+def adv_glob(arg_paths: Union[List[str], str], arg_recursive: bool = False, arg_supress_errors: bool = False, arg_debug: bool = False) -> List[str]:
     ''' Returns a list of files (with full path) that matches a list of filters.
         Example arg_paths: c:\\a.txt c:\\a\\folder1 folder* folder1 folder2\\ folder1\\* fodler5 non-existant_file.txt folder2 *.log
     
@@ -48,7 +48,7 @@ def adv_glob(arg_paths: _typing.Union[_typing.List[str], str], arg_recursive: bo
     '''
 
     _list_of_urls = []
-    file_filters: _typing.Dict[str, _typing.Set] = {}
+    file_filters: Dict[str, Set] = {}
     arg_paths_list: list
     if isinstance(arg_paths, str):
         arg_paths_list = [arg_paths]
@@ -98,7 +98,7 @@ def adv_glob(arg_paths: _typing.Union[_typing.List[str], str], arg_recursive: bo
     return_list.extend(_list_of_urls)
     return return_list
 
-def list_of_files(arg_folder: str, arg_filters: _typing.Union[None, str, _typing.List, _typing.Set, _typing.Tuple] = "*", arg_recursive: bool = False, arg_supress_errors: bool = False, arg_debug: bool = False) -> list:
+def list_of_files(arg_folder: str, arg_filters: Union[None, str, List, Set, Tuple] = "*", arg_recursive: bool = False, arg_supress_errors: bool = False, arg_debug: bool = False) -> list:
     """ Helper funtion to adv_glob """
     return_list = []
     filters = list_from_str(arg_filters)
@@ -131,8 +131,8 @@ def ensure_dir(arg_full_path: str):
     if not os.path.exists(_dirs):
         os.makedirs(_dirs)
 
-def download_file(arg_url: str, arg_proxy_string_to_curl: str = "", arg_origin: str = "", arg_referer: str = "", arg_local_filename: _typing.Union[str, None] = None, arg_check_remote_filesize: bool = False, arg_max_num_bytes: int = 0, arg_rate_limit: str = "100M") -> str:
-    """ Download a file and look like a normal web browser """
+def download_file(arg_url: str, arg_proxy_string_to_curl: str = "", arg_origin: str = "", arg_referer: str = "", arg_local_filename: Union[str, None] = None, arg_check_remote_filesize: bool = False, arg_max_num_bytes: int = 0, arg_rate_limit: str = "100M") -> str:
+    """ Download a file with CURL and look like a normal web browser """
 
     if not arg_local_filename:
         arg_local_filename = os.path.join(f"0000_{now_nice_format(arg_filename_safe=True)}_download.tmp")
@@ -169,7 +169,6 @@ def download_file(arg_url: str, arg_proxy_string_to_curl: str = "", arg_origin: 
     curl_command += f' -o "{arg_local_filename}"'
     curl_command += ' --continue-at -' # https://curl.se/docs/manpage.html#-C
     curl_command += f' "{arg_url}"'
-    print("")
     timestamped_print("\n\n" + curl_command + "\n\n")
     if 0 == os.system(curl_command):
         return arg_local_filename
@@ -179,15 +178,11 @@ def download_file(arg_url: str, arg_proxy_string_to_curl: str = "", arg_origin: 
 def now_nice_format(arg_filename_safe: bool = False, arg_utc: bool = False) -> str:
     """ Helper function for timestamped_line() """
 
-    if arg_utc:
-        dt = datetime.datetime.utcnow()
-    else:
-        dt = datetime.datetime.now()
-    _dt = datetime.datetime.timetuple(dt)
-    return_string = time.strftime("%Y-%m-%d %H:%M:%S", _dt)
+    dt = datetime.datetime.utcnow() if arg_utc else datetime.datetime.now()
+    res = time.strftime("%Y-%m-%d %H:%M:%S", datetime.datetime.timetuple(dt))
     if arg_filename_safe:
-        return smart_filesystem_safe_path(return_string)
-    return return_string
+        return smart_filesystem_safe_path(res)
+    return res
 
 def timestamped_line(arg_str: str = "") -> str:
     return f"[{now_nice_format()}] {arg_str}"
@@ -215,7 +210,7 @@ def log_print(arg_string: str, arg_actually_log: bool = True, arg_type: str = "D
 
         timestamped_print(arg_str=log_line, arg_file=arg_file, arg_force_flush=arg_force_flush)
 
-_ExpType = _typing.TypeVar('_ExpType')
+_ExpType = TypeVar('_ExpType')
 def debug(exp: _ExpType, arg_supress_output: bool = False, arg_out_handle = sys.stderr) -> _ExpType:
     ''' Modded version of pydbg '''
     if arg_supress_output:
@@ -298,7 +293,7 @@ def dict_count(arg_dict: dict, arg_key) -> dict:
     ex: dict_count({"1001": {"name": "Spongebob", "age": 35}, "1002": {"name": "Patrick", "age": 35}, "1003": {"name": "Squidward", "age": 43}}, "age")
     """
 
-    res: _typing.Dict[_typing.Any, int] = {}
+    res: Dict[Any, int] = {}
     for v in arg_dict.values():
         for k2, v2 in v.items():
             if arg_key == k2:
@@ -335,17 +330,17 @@ def dict_move_to_start(arg_dict: dict, arg_key) -> dict:
         res[k] = v
     return res
 
-def dict_to_json_string_pretty(arg_dict: dict, arg_as_html: bool = False) -> str:
+def dict_to_json_string_pretty(arg_dict: Union[dict, list], arg_as_html: bool = False) -> str:
     res = json.dumps(arg_dict, ensure_ascii=False, indent=4, default=str)
     if arg_as_html:
         res = res.replace("\n", "<br/>\n")
     return res
 
-def dict_dump_to_json_file(arg_dict: dict, arg_filename: str) -> bool:
+def dict_dump_to_json_file(arg_dict: Union[dict, list], arg_filename: str) -> bool:
     if isinstance(arg_dict, str) and isinstance(arg_filename, dict): # Sometimes I mix up the order, if I do then just make the code fix it for me
         arg_dict, arg_filename = arg_filename, arg_dict
 
-    if not isinstance(arg_dict, dict) or not isinstance(arg_filename, str):
+    if not (isinstance(arg_dict, dict) or isinstance(arg_dict, list)) or not isinstance(arg_filename, str):
         raise ValueError(f'Invalid arguments. arg_dict is of type: {type(arg_dict)} and arg_filename is of type: {type(arg_filename)}')
 
     data = dict_to_json_string_pretty(arg_dict)
@@ -353,7 +348,7 @@ def dict_dump_to_json_file(arg_dict: dict, arg_filename: str) -> bool:
         f.write(data)
     return True
 
-def dict_load_json_file(arg_filename_or_url: str) -> _typing.Union[_typing.Dict, None]:
+def dict_load_json_file(arg_filename_or_url: str) -> Union[Dict, None]:
     ''' Takes a filename or URL and parse it as a dict '''
 
     file_content = text_read_whole_file(arg_filename_or_url)
@@ -361,7 +356,7 @@ def dict_load_json_file(arg_filename_or_url: str) -> _typing.Union[_typing.Dict,
         return None
     return json.loads(file_content)
 
-def dict_list_to_massive_dict(arg_list: _typing.List[_typing.Any], arg_key) -> _typing.Union[_typing.Dict, None]:
+def dict_list_to_massive_dict(arg_list: List[Any], arg_key) -> Union[Dict, None]:
     ''' Converts a list of dicts --> one massive dict '''
     res = {}
     for item in arg_list:
@@ -411,12 +406,12 @@ def dict_intersect(arg_left: dict, arg_right: dict) -> dict:
 
 # End of dict helpers
 
-def smart_filesystem_safe_path(arg_file_path: str, arg_allow_swedish_chars: bool = False, arg_fix_season_and_episodes: bool = True,  arg_replacement_char: str = '.') -> str:
+def smart_filesystem_safe_path(arg_file_path: Union[str], arg_allow_swedish_chars: bool = False, arg_fix_season_and_episodes: bool = True,  arg_replacement_char: str = '.') -> str:
     ''' Make a long and weird string into something that the OS likes more to handle '''
-    res = arg_file_path
+    res = str(arg_file_path)
     
     dir = ''
-    if arg_file_path[1] == ':' and arg_file_path[2] == '\\':
+    if arg_file_path[1] == ':' and arg_file_path[2] == '\\': # Full path: C:\dir\file.txt
         arg_file_path = arg_file_path[0].upper() + arg_file_path[1:] # I like when the drive letter is uppercase
         dir = os.path.dirname(arg_file_path)
         res = os.path.basename(arg_file_path)
@@ -438,8 +433,12 @@ def smart_filesystem_safe_path(arg_file_path: str, arg_allow_swedish_chars: bool
     res = res.replace("/", arg_replacement_char)
     res = res.replace("?", arg_replacement_char)
     res = res.replace("-", arg_replacement_char)
+    res = res.replace("#", arg_replacement_char)
     res = res.replace("*", arg_replacement_char)
     res = res.replace(" ", arg_replacement_char)
+    res = res.replace("｜", "") # special char that yt-dlp generate
+    res = res.replace("：", "") # special char that yt-dlp generate
+    res = res.replace("？", "") # special char that yt-dlp generate
     res = res.replace('"', "")
     res = res.replace("'", "")
     res = res.replace("[", arg_replacement_char)
@@ -447,12 +446,6 @@ def smart_filesystem_safe_path(arg_file_path: str, arg_allow_swedish_chars: bool
     res = res.replace("\t", "")
     res = res.replace(".–", arg_replacement_char)
     res = res.replace("–.", arg_replacement_char)
-    while res != res.replace('__', arg_replacement_char):
-        res = res.replace('__', arg_replacement_char)
-    while res != res.replace('  ', arg_replacement_char):
-        res = res.replace('  ', arg_replacement_char)
-    while res != res.replace('..', arg_replacement_char):
-        res = res.replace('..', arg_replacement_char)
 
     if arg_fix_season_and_episodes:
         res = re.sub('sasong.(\d\d?).avsnitt.(\d\d?)', 'S0\\1E0\\2', res, flags=re.IGNORECASE) # Swedish naming: Säsong-1-avsnitt-1 --> S01E01
@@ -460,6 +453,12 @@ def smart_filesystem_safe_path(arg_file_path: str, arg_allow_swedish_chars: bool
         res = re.sub(f'([{arg_replacement_char}])S(\d\d)E0(\d\d)', '\\1S\\2E\\3', res, flags=re.IGNORECASE) # Fix episode numbers 'E012' --> 'E12'
 
     res = os.path.join(dir, res)
+    while res != res.replace('__', arg_replacement_char):
+        res = res.replace('__', arg_replacement_char)
+    while res != res.replace('  ', arg_replacement_char):
+        res = res.replace('  ', arg_replacement_char)
+    while res != res.replace('..', arg_replacement_char):
+        res = res.replace('..', arg_replacement_char)
     return res
 
 def regexp_findall_quick_fix(arg_needle: str, arg_haystack: str, arg_default_return_if_not_found: list = None) -> list:
@@ -532,7 +531,8 @@ def text_write_whole_file(arg_filename: str, arg_text: str) -> bool:
         fp.write(arg_text)
     return True
 
-def text_read_whole_file(arg_filename_or_url: str) -> _typing.Union[str, None]:
+def text_read_whole_file(arg_filename_or_url: str) -> Union[str, None]:
+    arg_filename_or_url = str(arg_filename_or_url) # This will handle pathlib.Path 
     if "http" == arg_filename_or_url[0:4].lower():
         _tmp = download_file(arg_filename_or_url)
         res = text_read_whole_file(_tmp)
@@ -548,11 +548,11 @@ def text_read_whole_file(arg_filename_or_url: str) -> _typing.Union[str, None]:
         r = fp.read()
     return r
 
-def math_nthroot(x: _typing.Union[int, float, decimal.Decimal], n: _typing.Union[int, float, decimal.Decimal]) -> decimal.Decimal:
+def math_nthroot(x: Union[int, float, decimal.Decimal], n: Union[int, float, decimal.Decimal]) -> decimal.Decimal:
     ''' Returns the n:th root of x. Example: x=729, n=3 --> 9 '''
     return decimal.Decimal(pow(decimal.Decimal(x), decimal.Decimal(1)/decimal.Decimal(n)))
 
-def list_from_str(arg_str: _typing.Union[str, _typing.List, _typing.Set, _typing.Tuple, None], arg_re_splitter: str = ' |,|;|:|[+]|[-]|[|]|[\n]|[\r]') -> _typing.Union[_typing.List[str], None]:
+def list_from_str(arg_str: Union[str, List, Set, Tuple, None], arg_re_splitter: str = ' |,|;|:|[+]|[-]|[|]|[\n]|[\r]') -> Union[List[str], None]:
     ''' Take a str and try to convert into a list of str in a smart way.
     Returns None if something breaks. '''
     

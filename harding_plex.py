@@ -1,14 +1,24 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+'''
+
+https://github.com/pkkid/python-plexapi
+https://pypi.org/project/PlexAPI/
+https://github.com/pkkid/python-plexapi
+https://python-plexapi.readthedocs.io/en/latest/modules/library.html#
+
+'''
+
+
 __path_to_vlc__ = r"C:\Program Files\VideoLAN\VLC\vlc.exe"
 
 import os
 import argparse
-import typing as _typing
-
+from typing import Union, List, Dict, Set, Tuple, Any
+import pathlib
 import harding_utils as hu
-import plexapi.myplex # pip install plexapi    https://pypi.org/project/PlexAPI/        https://github.com/pkkid/python-plexapi       https://python-plexapi.readthedocs.io/en/latest/modules/library.html#
+import plexapi.myplex # pip install plexapi
 
 g_account = None
 
@@ -19,7 +29,7 @@ def account(arg_force_reconnect: bool = False) -> plexapi.myplex.MyPlexAccount:
         g_account = None
 
     if not g_account:
-        g_account = plexapi.myplex.MyPlexAccount(username='PLEX_USERNAME', password='PLEX_PASSWORD') # TODO: SECRET: Make sure this is not posted on the internet
+        g_account = plexapi.myplex.MyPlexAccount(username='<username>', password='<password>')
     return g_account
 
 def _resource(arg_name_or_client_id: str) -> plexapi.myplex.MyPlexResource:
@@ -33,28 +43,27 @@ def _resource(arg_name_or_client_id: str) -> plexapi.myplex.MyPlexResource:
             return r
     return None
 
-def server(arg_plex_resource: str) -> plexapi.server.PlexServer:
+def server(arg_plex_resource: Union[plexapi.myplex.MyPlexResource, str]) -> plexapi.server.PlexServer:
     """ Connect to a Plex server """
 
-    if isinstance(arg_plex_resource, str):
-        l_resource = _resource(arg_plex_resource)
-    else:
-        l_resource = arg_plex_resource
+    arg_plex_resource = _resource(arg_plex_resource) if isinstance(arg_plex_resource, str) else arg_plex_resource
 
-    if not isinstance(l_resource, plexapi.myplex.MyPlexResource):
+    if not isinstance(arg_plex_resource, plexapi.myplex.MyPlexResource):
         print('Invalid argument, arg_plex_resource must be either str or plexapi.myplex.MyPlexResource')
         return None
 
-    if not l_resource.clientIdentifier == '64557c5f54f73dea8054c8317f8742e84a4cac85': # My local server
-        while l_resource.connections[0].uri[0:11] in ['https://172', 'https://192']: # Never try to connect to the LAN IP on other Plex servers
-            del l_resource.connections[0]
+    if not arg_plex_resource.clientIdentifier == '64557c5f54f73dea8054c8317f8742e84a4cac85': # My local server
+        while arg_plex_resource.connections[0].uri[0:11] in ['https://172', 'https://192']: # Never try to connect to the LAN IP on other Plex servers
+            del arg_plex_resource.connections[0]
 
-    return l_resource.connect()
+    return arg_plex_resource.connect()
 
 def play_in_vlc(arg_plex_path: str) -> str:
     return download_from_plex(arg_plex_path=arg_plex_path, arg_virtual_file_system=False, arg_start_vlc=True)
 
-def download_from_plex(arg_plex_path: str, arg_virtual_file_system: bool = False, arg_start_vlc: bool = False) -> str:
+def download_from_plex(arg_plex_path: str, arg_virtual_file_system: bool = False, arg_start_vlc: bool = False, arg_download_poster: bool = False) -> str:
+    ''' Enter a URL to a plex clip and this function downloads it
+    '''
     if not arg_plex_path:
         return None
     _server = server(arg_plex_path)
@@ -84,15 +93,15 @@ def download_from_plex(arg_plex_path: str, arg_virtual_file_system: bool = False
 
         return vlc_command
 
-    hu.download_file(movie.thumbUrl, arg_local_filename=os.path.splitext(movie_filename)[0] + ".jpg")
+    if arg_download_poster:
+        hu.download_file(movie.thumbUrl, arg_local_filename=os.path.splitext(movie_filename)[0] + ".jpg")
 
     if arg_virtual_file_system:
-        downloaded_video = os.path.basename(movie.media[0].parts[0].file)
-        with open(downloaded_video, 'w', encoding='utf-8', newline='\n') as f:
+        with open(movie_filename, 'w', encoding='utf-8', newline='\n') as f:
             f.write(f'HVFS\n{video_url_in_plex}')
     else:
-        downloaded_video = hu.download_file(video_url_in_plex, arg_local_filename=movie_filename)
-    return downloaded_video
+        hu.download_file(video_url_in_plex, arg_local_filename=movie_filename)
+    return movie_filename
 
 def list_users() -> dict:
     _account = account()
@@ -103,30 +112,29 @@ def list_users() -> dict:
             continue
         user.real_name = 'unknown name'
         user.notes = ' '
-        if user.id == 2342342342342342:
+        if user.id == 123456:
             user.real_name = 'Johnny'
-            user.notes = 'Friend of my sister'
-        
+            user.notes = 'My sisters friend'
         users[user.id] = user
 
     users = hu.dict_sort(users)
 
     print(f'{"Username:":20s}{"Real name":30s}{"Email:":40s}{"user_id:":55s}{"Notes:"}')
     for user in users.values():
-        print(f'{user.username:20s}{user.real_name:30s}{user.email:40s}http://<PLEX_SERVER>/user?user_id={str(user.id):12s}{user.notes}')
+        print(f'{user.username:20s}{user.real_name:30s}{user.email:40s}http://PLEX-SERVER-IP:PLEX-PORT/user?user_id={str(user.id):12s}{user.notes}')
     print("To remove users: https://app.plex.tv/desktop/#!/settings/manage-library-access")
-
     return users
 
-def sections(arg_plex_server: str) -> _typing.Dict[str, plexapi.library.LibrarySection]:
-    ''' Sections are what the use see on the left side ('Movies', 'Shows' and so on) '''
-    if isinstance(arg_plex_server, str):
-        _server = server(arg_plex_server)
-    else:
-        _server = arg_plex_server
+def sections(arg_plex_server: Union[plexapi.server.PlexServer, str]) -> Dict[str, plexapi.library.LibrarySection]:
+    ''' Sections are what the use see on the left side ('Movies', 'Shows' and so on)
+
+        returns a dict that looks like: result['Movies']: <MovieSection:8:Movies>,
+    '''
+
+    _server = server(arg_plex_server) if isinstance(arg_plex_server, str) else arg_plex_server
 
     if not isinstance(_server, plexapi.server.PlexServer):
-        print('Invalid argument, arg_plex_server must be either str or plexapi.server.PlexServer')
+        hu.error_print('Invalid argument, arg_plex_server must be either str or plexapi.server.PlexServer')
         return None
     res = {}
     for section in _server.library.sections():
@@ -154,17 +162,30 @@ def https_url(arg_video: plexapi.video.Video, arg_index_if_multiple: int = 0) ->
     if isinstance(arg_video, plexapi.media.MediaPart):
         part = arg_video
     elif isinstance(arg_video, plexapi.media.Media):
-        part = arg_video.parts[arg_index_if_multiple]
-    elif isinstance(arg_video, plexapi.video.Video):
-        part = arg_video.media[0].parts[arg_index_if_multiple]
+        part = arg_video.parts[0]
+    elif isinstance(arg_video, plexapi.base.Playable):
+        part = arg_video.media[arg_index_if_multiple].parts[0]
+    else:
+        hu.error_print(f"No support for {type(arg_video)} yet!")
+        return None
 
     res = _server.url(part._details_key, includeToken=True) + '&download=0' # We add the download=0 cause if the server is configured to not allow downloads, this will will work anyway
     return res
 
-def generate_HVFS(arg_plex_server: plexapi.server.PlexServer, arg_dest_dir: str, arg_ignore: list = None) -> bool:
+def generate_HVFS(arg_plex_server:  Union[plexapi.server.PlexServer, str], arg_dest_dir: str, arg_ignore: list = None) -> bool:
     if not arg_ignore:
-        arg_ignore = ["Anime Movies (Dual)", "Anime Movies (Subs)", "Movies (4K)", "Movies (Foreign)", "Anime (Dual-Audio)", "Anime (Dubs)", "Anime (Subs)", "Fitness", "TV Shows (4K)", "TV Shows (Foreign)", "Audiobooks"]
-    
+        arg_ignore = ["Anime Movies (Dual)",
+                      "Anime Movies (Subs)",
+                      "Movies (4K)",
+                      "Movies (Foreign)",
+                      "Anime (Dual-Audio)",
+                      "Anime (Dubs)",
+                      "Anime (Subs)",
+                      "Fitness",
+                      "TV Shows (4K)",
+                      "TV Shows (Foreign)",
+                      "Audiobooks"]
+
     for section_name, section in sections(arg_plex_server).items():
         if section_name.strip() in arg_ignore:
             print(f"Ignoring {section_name}")
@@ -199,13 +220,23 @@ def generate_HVFS(arg_plex_server: plexapi.server.PlexServer, arg_dest_dir: str,
                 hu.text_write_whole_file(full_path, f"HVFS\n{https_url(movie)}")
 
 def video(arg_url: str) -> plexapi.video.Video:
-    ''' Take in an Plex URL that can identify a video '''
+    ''' Take in an Plex URL that can identify a video and return the Video object '''
     _server = server(arg_url)
     video_id = int(hu.regexp_findall_quick_fix(r"metadata%2F(\d+)", arg_url, ['video id not found'])[0])
     res = _server.fetchItem(video_id)
     return res
 
-def download_season(arg_plex_server: str, arg_show_name: str, arg_seasons: list, arg_dest_dir: str) -> bool:
+def filename_on_server(arg_video: Union[plexapi.base.Playable, str], arg_index_if_multiple: int = 0) -> str:
+    ''' Return the full file path on the SERVER for the video '''
+    if isinstance(arg_video, str):
+        arg_video = video(arg_video)
+    if not isinstance(arg_video, plexapi.base.Playable):
+        hu.error_print(f"Invalid type. You gave me {type(arg_video)} but I only know how to handle str or plexapi.base.Playable")
+        return None
+
+    return arg_video.media[arg_index_if_multiple].parts[0].file
+
+def download_season(arg_plex_server: str, arg_show_name: str, arg_seasons: Union[str, List, Set, Tuple, None], arg_dest_dir: str) -> bool:
     arg_seasons = hu.list_from_str(arg_seasons)
 
     for section in sections(arg_plex_server).values():
@@ -218,7 +249,7 @@ def download_season(arg_plex_server: str, arg_show_name: str, arg_seasons: list,
                         if str(season.seasonNumber) in arg_seasons or season.seasonNumber in arg_seasons:
                             print(f"Season named '{season.title}' matched in {arg_seasons}")
                             for episode in season.episodes():
-                                print(f"Found episode '{episode}' and starting to download that")
+                                print(f"Found episode '{episode.title}' and starting to download that")
                                 # plex_url = episode._server.url(episode.media[0].parts[0]._details_key, includeToken=True) + '&download=0'
                                 plex_url = https_url(episode)
                                 full_path = os.path.join(arg_dest_dir, hu.smart_filesystem_safe_path(section.title), hu.smart_filesystem_safe_path(show.title), f"S{season.seasonNumber:02d}", hu.smart_filesystem_safe_path(os.path.basename(episode.media[0].parts[0].file)))
@@ -253,6 +284,40 @@ def kill_plex():
     # ''' Kills everything that has to do with Plex (calling kill_plex() ) and then restarts the main binary "Plex Media Server.exe" '''
     # kill_plex()
     # os.system(r'"C:\Program Files (x86)\Plex\Plex Media Server\Plex Media Server.exe"')
+
+def summary_set_from_file(arg_video: Union[plexapi.video.Video, plexapi.video.Show, str]) -> bool:
+    ''' Given a Video, check if there is a file named: <videoname>.summary.txt next to it
+    For a show, there must be a file named summary.txt in the root of the show
+    For a season, there must be a file named summary.txt in the root of the season
+
+    If I find any summary file, I read the content and set it to the file
+    '''
+    if isinstance(arg_video, str):
+        arg_video = video(arg_video)
+    if not isinstance(arg_video, plexapi.video.Video):
+        hu.error_print(f"Invalid type. You gave me {type(arg_video)} but I only know how to handle str or plexapi.video.Video")
+        return None
+
+    if isinstance(arg_video, plexapi.video.Show):
+        summary_filename = str(pathlib.Path(filename_on_server(arg_video.seasons()[0].episodes()[0])).parent.parent / 'summary.txt' )
+    elif isinstance(arg_video, plexapi.video.Season):
+        summary_filename = str(pathlib.Path(filename_on_server(arg_video.episodes()[0])).parent / 'summary.txt' )
+    elif isinstance(arg_video, plexapi.base.Playable):
+        video_filename = filename_on_server(arg_video)
+        summary_filename = video_filename + '.summary.txt'
+    else:
+        hu.error_print(f"No support for {type(arg_video)} yet!")
+        return False
+
+    if os.path.exists(summary_filename):
+        hu.timestamped_print(f"Summary file {summary_filename} found!")
+        summary = hu.text_read_whole_file(summary_filename)
+        hu.timestamped_print(f"Setting the summary to:\n'{summary}\n'")
+        return arg_video.editSummary(summary, locked=True)
+    else:
+        hu.log_print(f"Could NOT find any file named: {summary_filename}")
+    return False
+
 
 if __name__ == "__main__":
     ''' Main function is run when the script is called from the console '''
