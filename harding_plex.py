@@ -52,7 +52,7 @@ def server(arg_plex_resource: Union[plexapi.myplex.MyPlexResource, str]) -> plex
         print('Invalid argument, arg_plex_resource must be either str or plexapi.myplex.MyPlexResource')
         return None
 
-    if not arg_plex_resource.clientIdentifier == '64557c5f54f73dea8054c8317f8742e84a4cac85': # My local server
+    if not arg_plex_resource.clientIdentifier == '<MY SERVER>': # My local server
         while arg_plex_resource.connections[0].uri[0:11] in ['https://172', 'https://192']: # Never try to connect to the LAN IP on other Plex servers
             del arg_plex_resource.connections[0]
 
