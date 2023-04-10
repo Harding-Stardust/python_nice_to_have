@@ -7,12 +7,11 @@ Helper functions to work with a Plex Media Server via Python
 
 https://github.com/pkkid/python-plexapi
 https://pypi.org/project/PlexAPI/
-https://github.com/pkkid/python-plexapi
 https://python-plexapi.readthedocs.io/en/latest/modules/library.html#
 
 '''
 
-__version__ = 230408011247
+__version__ = 230410233713
 __author__ = "Harding"
 __description__ = __doc__
 __copyright__ = "Copyright 2023"
@@ -24,8 +23,8 @@ __status__ = "Development"
 
 
 __path_to_vlc__ = r"C:\Program Files\VideoLAN\VLC\vlc.exe"
-__PLEX_USERNAME = '< PLEXUSERNAME >' 
-__PLEX_PASSWORD = '<PLEX PASSWORD >'
+__PLEX_USERNAME = 'PLEXUSERNAME'
+__PLEX_PASSWORD = 'PLEXPASSWORD'
 
 import os
 import argparse
@@ -66,7 +65,7 @@ def server(arg_plex_resource: Union[plexapi.myplex.MyPlexResource, str]) -> plex
         print('Invalid argument, arg_plex_resource must be either str or plexapi.myplex.MyPlexResource')
         return None
 
-    if not arg_plex_resource.clientIdentifier == '<LOCAL SERVER ID>': # My local server
+    if not arg_plex_resource.clientIdentifier == 'LOCAL SERVER ID': # My local server
         while arg_plex_resource.connections[0].uri[0:11] in ['https://172', 'https://192']: # Never try to connect to the LAN IP on other Plex servers
             del arg_plex_resource.connections[0]
 
@@ -75,9 +74,9 @@ def server(arg_plex_resource: Union[plexapi.myplex.MyPlexResource, str]) -> plex
 def play_in_vlc(arg_plex_path: str) -> str:
     return download_from_plex(arg_plex_path=arg_plex_path, arg_virtual_file_system=False, arg_start_vlc=True)
 
-def download_from_plex(arg_plex_path: Union[plexapi.base.Playable, str], 
-                       arg_virtual_file_system: bool = False, 
-                       arg_start_vlc: bool = False, 
+def download_from_plex(arg_plex_path: Union[plexapi.base.Playable, str],
+                       arg_virtual_file_system: bool = False,
+                       arg_start_vlc: bool = False,
                        arg_download_poster: bool = False) -> str:
     ''' Enter a URL to a plex video and this function downloads the subs and the video
     '''
@@ -123,45 +122,68 @@ def download_from_plex(arg_plex_path: Union[plexapi.base.Playable, str],
         hu.download_file(video_url, arg_local_filename=video_filename)
     return video_filename
 
-def users_can_download(arg_allowed_download: bool = True):
+def users_can_download(arg_server: Union[plexapi.server.PlexServer, str], arg_allowed_download: bool = True):
     ''' Set the 'allow download' on all users '''
     _account = account()
-    _server = server('Ymer')
-    for user in _account.users():
-        hu.timestamped_print(f"Checking user: {user.email}", arg_force_flush=True)
-        _account.updateFriend(user, _server, allowSync=arg_allowed_download)
+    _server = server(arg_server) if isinstance(arg_server, str) else arg_server
+    for _user in _account.users():
+        hu.timestamped_print(f"Changing user: {_user.email}")
+        _account.updateFriend(_user, _server, allowSync=arg_allowed_download)
 
-def list_users():
+def users_can_access_sections(arg_users: List[plexapi.myplex.MyPlexUser], arg_sections: List[plexapi.library.LibrarySection]):
+    ''' The users in the arg_users will have access to the sections in arg_sections '''
+
+    _account = account()
+
+    if isinstance(arg_users, dict):
+        arg_users = [_user for _user in arg_users.values()]
+
+    if isinstance(arg_sections, dict):
+        arg_sections = [_section for _section in arg_sections.values()]
+
+    section_names = [_section.title for _section in arg_sections]
+
+    for _user in arg_users:
+        hu.timestamped_print(f"Changing user: {_user.email} --> adding {', '.join(section_names)}")
+        try:
+            _account.updateFriend(_user, arg_sections[0]._server, sections=arg_sections, allowSync=True)
+        except plexapi.exceptions.BadRequest as exc:
+            hu.log_print(f"Got a BadRequest exception: {exc}")
+
+def users():
     _account = account()
 
     users = {}
     for user in _account.users():
         if not user.email:
             continue
-        user.real_name = ' '
-        user.notes = ' '
-        if user.id == 123456:
+        user.real_name = ''
+        user.notes = ''
+        if user.id == 123465:
             user.real_name = 'Johnny'
-            user.notes = 'My sisters friend'
+            user.notes = 'Friend of my sister'
         users[user.id] = user
 
     users = hu.dict_sort(users)
 
+    plexpy_url = "IP AND PORT TO PLEXPY"
     print(f'{"Username:":20s}{"Real name":30s}{"Email:":40s}{"user_id:":55s}{"Notes:"}')
     for user in users.values():
-        print(f'{user.username:20s}{user.real_name:30s}{user.email:40s}http://<PLEXPY URL>/user?user_id={str(user.id):12s}{user.notes}')
+        print(f'{user.username:20s}{user.real_name:30s}{user.email:40s}http://{plexpy_url}/user?user_id={str(user.id):12s}{user.notes}')
     print("To remove users: https://app.plex.tv/desktop/#!/settings/manage-library-access")
 
-def sections(arg_plex_server: Union[plexapi.server.PlexServer, str]) -> Dict[str, plexapi.library.LibrarySection]:
+    return users
+
+def sections(arg_server: Union[plexapi.server.PlexServer, str]) -> Dict[str, plexapi.library.LibrarySection]:
     ''' Sections are what the use see on the left side ('Movies', 'Shows' and so on)
 
         returns a dict that looks like: result['Movies']: <MovieSection:8:Movies>,
     '''
 
-    _server = server(arg_plex_server) if isinstance(arg_plex_server, str) else arg_plex_server
+    _server = server(arg_server) if isinstance(arg_server, str) else arg_server
 
     if not isinstance(_server, plexapi.server.PlexServer):
-        hu.error_print('Invalid argument, arg_plex_server must be either str or plexapi.server.PlexServer')
+        hu.error_print('Invalid argument, arg_server must be either str or plexapi.server.PlexServer')
         return None
     res = {}
     for section in _server.library.sections():
@@ -254,7 +276,7 @@ def HVFS_full_server_clone(arg_plex_server: Union[plexapi.server.PlexServer, str
 
 def video(arg_plex_url: str) -> plexapi.video.Video:
     ''' Take in an Plex URL that can identify a video and return the Video object '''
-    video_id = int(hu.regexp_findall_quick_fix(r"metadata%2F(\d+)", arg_plex_url, ['video id not found'])[0])
+    video_id: int = int(hu.regexp_findall_quick_fix(r"metadata%2F(\d+)", arg_plex_url, ['video id not found'])[0])
     _server = server(arg_plex_url)
     res = _server.fetchItem(video_id)
     return res
@@ -291,18 +313,17 @@ def download_season(arg_plex_server: str, arg_show_name: str, arg_seasons: Union
                             print(f"Season named '{season.title}' matched in {arg_seasons}")
                             for episode in season.episodes():
                                 print(f"Found episode '{episode.title}' and starting to download that")
-                                # plex_url = episode._server.url(episode.media[0].parts[0]._details_key, includeToken=True) + '&download=0'
                                 plex_url = https_url(episode)
-                                full_path = os.path.join(arg_dest_dir, 
-                                                         hu.smart_filesystem_safe_path(section.title), 
-                                                         hu.smart_filesystem_safe_path(_show.title), f"S{season.seasonNumber:02d}", 
+                                full_path = os.path.join(arg_dest_dir,
+                                                         hu.smart_filesystem_safe_path(section.title),
+                                                         hu.smart_filesystem_safe_path(_show.title), f"S{season.seasonNumber:02d}",
                                                          hu.smart_filesystem_safe_path(os.path.basename(episode.media[0].parts[0].file)))
 
                                 if len(full_path) > 259:
                                     ext = os.path.splitext(episode.media[0].parts[0].file)[1]
-                                    full_path = os.path.join(arg_dest_dir, hu.smart_filesystem_safe_path(section.title), 
-                                                             hu.smart_filesystem_safe_path(_show.title), 
-                                                             f"S{season.seasonNumber:02d}", 
+                                    full_path = os.path.join(arg_dest_dir, hu.smart_filesystem_safe_path(section.title),
+                                                             hu.smart_filesystem_safe_path(_show.title),
+                                                             f"S{season.seasonNumber:02d}",
                                                              hu.smart_filesystem_safe_path(os.path.basename(episode.media[0].parts[0].file[0:100] + ext)))
 
 
@@ -410,9 +431,9 @@ def playlist(arg_server: str,
              arg_migrate_to_server: str = None) -> List[plexapi.base.Playable]:
 
     ''' Default: Get the playlist as a List[plexapi.base.Playable]
-        
+        argument arg_playlist --> set this to None to take ALL playlists
         argument arg_migrate_to_server: str --> set this to create the playlist on this server
-    
+
     '''
 
     res = []
@@ -421,12 +442,12 @@ def playlist(arg_server: str,
 
     if isinstance(arg_playlist, List):
         for _playlist in arg_playlist:
-            res.append(playlist_print(arg_server, _playlist, arg_migrate_to_server))
+            res.append(playlist(arg_server, _playlist, arg_migrate_to_server))
         return res
 
     _server = server(arg_server)
     _new_server = server(arg_migrate_to_server) if arg_migrate_to_server else None
-    print(f"Migrate to: {_new_server.friendlyName}")
+    print(f"Migrate to: {getattr(_new_server, 'friendlyName', 'Not migrating')}")
 
     if isinstance(arg_playlist, str):
         arg_playlist = _server.playlist(arg_playlist)
