@@ -9,34 +9,17 @@ https://python-plexapi.readthedocs.io/en/latest/modules/library.html#
 https://github.com/pkkid/python-plexapi
 https://pypi.org/project/PlexAPI/
 
-# TODO:
-When in a Movie library, you can enter the IMDB ID in the title and search for that.
-For instance, the IMDb entry for “Brave” is http://www.imdb.com/title/tt1217209/.
-If you enter imdb-tt1217209 as the search term, it will search for that exact movie to try to match.
-
-For a TV Shows library, you can similarly enter the TVDB ID as the title to search for that particular show.
-If you visit the Archer (2009) page on the TVDB website,
-you can see that it has a Series ID of “110381”.
-So, entering tvdb-110381 as the search term will search for that exact show.
-For The Movie Database the format would be tmdb-10283
-
 # TODO: Trending on Plex:
 https://app.plex.tv/desktop/#!/media/tv.plex.provider.discover?source=home
 
-
 TODO: Plex has guids!
 https://app.plex.tv/desktop/#!/provider/tv.plex.provider.discover/details?key=%2Flibrary%2Fmetadata%2F<guid>
-https://app.plex.tv/desktop/#!/provider/tv.plex.provider.discover/details?key=%2Flibrary%2Fmetadata%2F6351386fd627d115c3f36aa0
-https://app.plex.tv/desktop/#!/provider/tv.plex.provider.discover/details?key=%2Flibrary%2Fmetadata%2F5d9c091408fddd001f2a71c3
-https://app.plex.tv/desktop/#!/provider/tv.plex.provider.discover/details?key=%2Flibrary%2Fmetadata%2F634c602dd1fe1248ea6ce5ba
-https://app.plex.tv/desktop/#!/provider/tv.plex.provider.discover/details?key=%2Flibrary%2Fmetadata%2F634c6040d1fe1248ea6ce5e0
-https://app.plex.tv/desktop/#!/provider/tv.plex.provider.discover/details?key=%2Flibrary%2Fmetadata%2F5d7768686f4521001eaa5cac
+The Super Mario Bros. Movie: https://app.plex.tv/desktop/#!/provider/tv.plex.provider.discover/details?key=%2Flibrary%2Fmetadata%2F5f40cdfabf3e560040d5cd85
 
 section.search(guid='plex://movie/61ec22a05eba2b44f621dff3')
-
 '''
 
-__version__ = 230415214611
+__version__ = 230516182520
 __author__ = "Harding"
 __description__ = __doc__
 __copyright__ = "Copyright 2023"
@@ -48,14 +31,15 @@ __status__ = "Development"
 
 
 __path_to_vlc__ = r"C:\Program Files\VideoLAN\VLC\vlc.exe"
-__PLEX_USERNAME = 'plexusername' 
-__PLEX_PASSWORD = 'plexpassword' 
+__PLEX_USERNAME = 'USERNAME'
+__PLEX_PASSWORD = 'PASSWORD'
 
 import os
 from typing import Union, List, Dict, Set, Tuple
 import pathlib
 import plexapi.myplex # pip install plexapi
 import harding_utils as hu
+import harding_json as hj
 
 g_account = None
 
@@ -93,7 +77,7 @@ def server(arg_plex_resource: Union[plexapi.myplex.MyPlexResource, str, plexapi.
         return None
 
     _local_ips = ['https://172', 'https://192', 'https://10.', 'https://127']
-    if not arg_plex_resource.clientIdentifier == 'hex id of local server': # My local server
+    if not arg_plex_resource.clientIdentifier == 'XXXXXXXXXX': # My local server
         while arg_plex_resource.connections[0].uri[0:11] in _local_ips: # Never try to connect to the LAN IP on other Plex servers
             del arg_plex_resource.connections[0]
 
@@ -112,19 +96,20 @@ def download_from_plex(arg_plex_path: Union[plexapi.base.Playable, str],
         return None
 
     _video = video(arg_plex_path) if isinstance(arg_plex_path, str) else arg_plex_path
-    if not isinstance(_video, plexapi.base.Playable):
+    if not isinstance(_video, plexapi.base.Playable) and not isinstance(_video, plexapi.audio.Audio):
         hu.error_print(f"Cannot handle {type(_video)}")
         return None
 
     video_filename = filename_on_server(_video, arg_only_basename=True, arg_safe_local_filename=True)
 
     downloaded_subs = []
-    for sub in _video.subtitleStreams():
-        if not sub.key:
-            continue
-        sub_full_url = https_url(sub)
-        sub_local_name = f"{os.path.splitext(video_filename)[0]}.{sub.languageCode}.{sub.codec}"
-        downloaded_subs.append(hu.download_file(arg_url=sub_full_url, arg_local_filename=sub_local_name))
+    if hasattr(video, "subtitleStreams"):
+        for sub in _video.subtitleStreams():
+            if not sub.key:
+                continue
+            sub_full_url = https_url(sub)
+            sub_local_name = f"{os.path.splitext(video_filename)[0]}.{sub.languageCode}.{sub.codec}"
+            downloaded_subs.append(hu.download_file(arg_url=sub_full_url, arg_local_filename=sub_local_name))
 
     video_url = https_url(_video)
 
@@ -152,17 +137,15 @@ def download_from_plex(arg_plex_path: Union[plexapi.base.Playable, str],
 
 def users_can_download(arg_server: Union[plexapi.server.PlexServer, str], arg_allowed_download: bool = True):
     ''' Set the 'allow download' on all users '''
-    _account = account()
-    _server = server(arg_server) if isinstance(arg_server, str) else arg_server
-    for _user in _account.users():
-        hu.timestamped_print(f"Changing user: {_user.email}")
-        _account.updateFriend(_user, _server, allowSync=arg_allowed_download)
 
-def users_can_access_sections(arg_users: List[plexapi.myplex.MyPlexUser], 
+    _server = server(arg_server) if isinstance(arg_server, str) else arg_server
+    for _user in account().users():
+        hu.timestamped_print(f"Changing user: {_user.email}")
+        account().updateFriend(_user, _server, allowSync=arg_allowed_download)
+
+def users_can_access_sections(arg_users: List[plexapi.myplex.MyPlexUser],
                               arg_sections: List[plexapi.library.LibrarySection]):
     ''' The users in the arg_users will have access to the sections in arg_sections '''
-
-    _account = account()
 
     if isinstance(arg_users, dict):
         arg_users = list(arg_users.values())
@@ -175,33 +158,9 @@ def users_can_access_sections(arg_users: List[plexapi.myplex.MyPlexUser],
     for _user in arg_users:
         hu.timestamped_print(f"Changing user: {_user.email} --> adding {', '.join(section_names)}")
         try:
-            _account.updateFriend(_user, arg_sections[0]._server, sections=arg_sections, allowSync=True)
+            account().updateFriend(_user, arg_sections[0]._server, sections=arg_sections, allowSync=True)
         except plexapi.exceptions.BadRequest as exc:
             hu.log_print(f"Got a BadRequest exception: {exc}")
-
-def users():
-    _account = account()
-
-    _users = {}
-    for user in _account.users():
-        if not user.email:
-            continue
-        user.real_name = ''
-        user.notes = ''
-        if user.id == 1234536:
-            user.real_name = 'Johnny Smith'
-            user.notes = 'Friend of my sister'
-        _users[user.id] = user
-
-    _users = hu.dict_sort(_users)
-
-    plexpy_url = "PLEXPY URL INCL PORT"
-    print(f'{"Username:":20s}{"Real name":30s}{"Email:":40s}{"user_id:":55s}{"Notes:"}')
-    for _user in _users.values():
-        print(f'{_user.username:20s}{_user.real_name:30s}{_user.email:40s}http://{plexpy_url}/user?user_id={str(_user.id):12s}{_user.notes}')
-    print("To remove users: https://app.plex.tv/desktop/#!/settings/manage-library-access")
-
-    return users
 
 def sections(arg_server: Union[plexapi.server.PlexServer, str],
              arg_filter: Union[List[str], Dict[str, plexapi.library.LibrarySection], None] = None
@@ -228,15 +187,25 @@ def https_url(arg_video: plexapi.video.Video, arg_index_if_multiple: int = 0) ->
 
     _server = arg_video._server # This special member seems to exist on all of the given objects we can handle
 
+    no_download_fix = '&download=0' # We add the download=0 cause if the server is configured to not allow downloads, this will will work anyway
+
+    # Album
+    if isinstance(arg_video, plexapi.audio.Album):
+        arg_video = arg_video.tracks()[0] # arg_video is now plexapi.audio.Track
+
+    # Track
+    if isinstance(arg_video, plexapi.audio.Audio):
+        return _server.url(arg_video.media[arg_index_if_multiple].parts[0].key, includeToken=True) + no_download_fix
+
     # Subtitle
     if isinstance(arg_video, plexapi.media.SubtitleStream):
         subtitle = arg_video
-        return _server.url(subtitle.key, includeToken=True)
+        return _server.url(subtitle.key, includeToken=True) + no_download_fix
 
     # Poster / art
     if isinstance(arg_video, plexapi.media.Poster):
         poster = arg_video
-        return _server.url(poster.key, includeToken=True)
+        return _server.url(poster.key, includeToken=True) + no_download_fix
 
     # Video
     part = None
@@ -250,69 +219,35 @@ def https_url(arg_video: plexapi.video.Video, arg_index_if_multiple: int = 0) ->
         hu.error_print(f"No support for {type(arg_video)} yet!")
         return None
 
-    res = _server.url(part._details_key, includeToken=True) + '&download=0' # We add the download=0 cause if the server is configured to not allow downloads, this will will work anyway
+    res = _server.url(part.key, includeToken=True) + no_download_fix
     return res
-
-def HVFS_full_server_clone(arg_plex_server: Union[plexapi.server.PlexServer, str],
-                           arg_dest_dir: str,
-                           arg_ignore: Union[List[str], None] = None):
-    if not arg_ignore:
-        arg_ignore = ["4K", "Anime", "Fitness", "Foreign", "Audiobooks"]
-
-    for section_name, section in sections(arg_plex_server).items():
-        for ignore_word in arg_ignore:
-            if ignore_word.lower() in section_name.lower().strip():
-                hu.timestamped_print(f"Ignoring {section_name}")
-                continue
-
-        if section.type == 'show':
-            for _show in section.all():
-                for season in _show.seasons():
-                    for episode in season.episodes():
-                        full_path = os.path.join(arg_dest_dir,
-                                                 hu.smart_filesystem_safe_path(section.title),
-                                                 hu.smart_filesystem_safe_path(_show.title),
-                                                 f"S{season.seasonNumber:02d}",
-                                                 filename_on_server(episode, arg_only_basename=True, arg_safe_local_filename=True))
-
-                        if len(full_path) > 259:
-                            ext = os.path.splitext(episode.media[0].parts[0].file)[1]
-                            full_path = os.path.join(arg_dest_dir,
-                                                     hu.smart_filesystem_safe_path(section.title),
-                                                     hu.smart_filesystem_safe_path(_show.title), f"S{season.seasonNumber:02d}",
-                                                     filename_on_server(episode, arg_only_basename=True, arg_safe_local_filename=True)[0:100] + ext)
-
-                        hu.ensure_dir(full_path)
-                        hu.text_write_whole_file(full_path, f"HVFS\n{https_url(episode)}")
-
-        elif section.type == 'movie':
-            for _movie in section.all():
-                full_path = os.path.join(arg_dest_dir,
-                                         hu.smart_filesystem_safe_path(section.title),
-                                         hu.smart_filesystem_safe_path(_movie.title),
-                                         filename_on_server(_movie, arg_only_basename=True, arg_safe_local_filename=True))
-
-                if len(full_path) > 259:
-                    full_path = os.path.join(arg_dest_dir,
-                                             hu.smart_filesystem_safe_path(section.title),
-                                             hu.smart_filesystem_safe_path(_movie.title[50]),
-                                             filename_on_server(_movie, arg_only_basename=True, arg_safe_local_filename=True))
-
-                if len(full_path) > 259:
-                    ext = os.path.splitext(_movie.media[0].parts[0].file)[1]
-                    full_path = os.path.join(arg_dest_dir,
-                                             hu.smart_filesystem_safe_path(section.title),
-                                             hu.smart_filesystem_safe_path(_movie.title[50]),
-                                             filename_on_server(_movie, arg_only_basename=True, arg_safe_local_filename=True)[0:50] + ext)
-
-                hu.ensure_dir(full_path)
-                hu.text_write_whole_file(full_path, f"HVFS\n{https_url(_movie)}")
 
 def video(arg_plex_url: str) -> plexapi.video.Video:
     ''' Take in an Plex URL that can identify a video and return the Video object '''
+
+    if isinstance(arg_plex_url, plexapi.video.Video):
+        return arg_plex_url
+    if not isinstance(arg_plex_url, str):
+        hu.error_print(f"Invalid type. You gave me {type(arg_plex_url)} but I only know how to handle str or plexapi.video.Video")
+        return None
+
     video_id: int = int(hu.regexp_findall_quick_fix(r"metadata%2F(\d+)", arg_plex_url, ['video id not found'])[0])
-    _server = server(arg_plex_url)
-    res = _server.fetchItem(video_id)
+    return server(arg_plex_url).fetchItem(video_id)
+
+def share(arg_video: Union[plexapi.base.Playable, str]) -> Union[str, None]:
+    ''' Get an URL you can send to your friends '''
+
+    arg_video = video(arg_video) if isinstance(arg_video, str) else arg_video
+    if not isinstance(arg_video, plexapi.base.Playable) and not isinstance(arg_video, plexapi.audio.Audio):
+        hu.error_print(f"Invalid type. You gave me {type(arg_video)} but I only know how to handle str, plexapi.base.Playable (videos) or plexapi.audio.Audio")
+        return None
+
+    if arg_video.guid.startswith('com.plexapp.agents.none://'):
+        hu.error_print("No GUID for this video")
+        return None
+
+    l_guid = hu.regexp_findall_quick_fix(r"/([0-9a-fA-F]{10,})", arg_video.guid)[0]
+    res = f"https://app.plex.tv/desktop/#!/provider/tv.plex.provider.discover/details?key=%2Flibrary%2Fmetadata%2F{l_guid}"
     return res
 
 def filename_on_server(arg_video: Union[plexapi.base.Playable, str],
@@ -323,9 +258,13 @@ def filename_on_server(arg_video: Union[plexapi.base.Playable, str],
 
     if isinstance(arg_video, str):
         arg_video = video(arg_video)
-    if not isinstance(arg_video, plexapi.base.Playable):
-        hu.error_print(f"Invalid type. You gave me {type(arg_video)} but I only know how to handle str or plexapi.base.Playable")
+    if not isinstance(arg_video, plexapi.base.Playable) and not isinstance(arg_video, plexapi.audio.Audio):
+        hu.error_print(f"Invalid type. You gave me {type(arg_video)} but I only know how to handle str, plexapi.base.Playable (videos) or plexapi.audio.Audio")
         return None
+
+    if isinstance(arg_video, plexapi.audio.Album):
+        arg_video = arg_video.tracks()[0] # arg_video is now a plexapi.audio.Track which has the .media[0].parts[0].file
+
     res = arg_video.media[arg_index_if_multiple].parts[0].file
     if arg_only_basename:
         res = os.path.basename(res)
@@ -333,10 +272,14 @@ def filename_on_server(arg_video: Union[plexapi.base.Playable, str],
         res = hu.smart_filesystem_safe_path(res)
     return res
 
-def download_season(arg_plex_server: str, arg_show_name: str, arg_seasons: Union[str, List, Set, Tuple, None], arg_dest_dir: str) -> bool:
+def download_season(arg_plex_server: str,
+                    arg_show_name: str,
+                    arg_seasons: Union[str, List, Set, Tuple, None],
+                    arg_dest_dir: str,
+                    arg_filter: Union[List[str], Dict[str, plexapi.library.LibrarySection], None] = None) -> bool:
     arg_seasons = hu.list_from_str(arg_seasons)
 
-    for section in sections(arg_plex_server).values():
+    for section in sections(arg_plex_server, arg_filter=arg_filter).values():
         if section.type == 'show':
             for _show in section.all():
                 if _show.title.lower() == arg_show_name.lower():
@@ -388,9 +331,9 @@ def kill_plex():
     # os.system(r'"C:\Program Files (x86)\Plex\Plex Media Server\Plex Media Server.exe"')
 
 def summary_set_from_file(arg_video: Union[plexapi.video.Video, plexapi.video.Show, str]) -> bool:
-    ''' Given a Video, check if there is a file named: <videoname>.summary.txt next to it
-    For a show, there must be a file named summary.txt in the root of the show
-    For a season, there must be a file named summary.txt in the root of the season
+    ''' Given a Video, check if there is a file named: <videoname>.json next to it
+    For a show, there must be a file named .json in the root of the show
+    For a season, there must be a file named .json in the root of the season
 
     If I find any summary file, I read the content and set it to the file
     '''
@@ -400,29 +343,50 @@ def summary_set_from_file(arg_video: Union[plexapi.video.Video, plexapi.video.Sh
         hu.error_print(f"Invalid type. You gave me {type(arg_video)} but I only know how to handle str or plexapi.video.Video")
         return None
 
+    filename = ".json"
     if isinstance(arg_video, plexapi.video.Show):
-        summary_filename = str(pathlib.Path(filename_on_server(arg_video.seasons()[0].episodes()[0])).parent.parent / 'summary.txt' )
+        summary_filename = str(pathlib.Path(filename_on_server(arg_video.seasons()[0].episodes()[0])).parent.parent / filename ) # TODO: test this
     elif isinstance(arg_video, plexapi.video.Season):
-        summary_filename = str(pathlib.Path(filename_on_server(arg_video.episodes()[0])).parent / 'summary.txt' )
+        summary_filename = str(pathlib.Path(filename_on_server(arg_video.episodes()[0])).parent / filename )  # TODO: test this
     elif isinstance(arg_video, plexapi.base.Playable):
         video_filename = filename_on_server(arg_video)
-        summary_filename = video_filename + '.summary.txt'
+        summary_filename = video_filename + filename
     else:
         hu.error_print(f"No support for {type(arg_video)} yet!")
         return False
 
     if os.path.exists(summary_filename):
         hu.timestamped_print(f"Summary file {summary_filename} found!")
-        summary = hu.text_read_whole_file(summary_filename)
-        hu.timestamped_print(f"Setting the summary to:\n'{summary}\n'")
-        return arg_video.editSummary(summary, locked=True)
+        info_json = hj.unwrapped_json(summary_filename)
+        summary = info_json.get('description', '').strip()
+        youtube_id = info_json.get('id', '').strip()
+        if youtube_id:
+            if youtube_id.startswith('http'):
+                summary += f"\n\n{youtube_id}"
+            else:
+                summary += f"\n\nhttps://www.youtube.com/watch?v={youtube_id}"
+
+        title = ""
+        if hasattr(arg_video, 'seasonEpisode'):
+            title += f"{arg_video.seasonEpisode.upper()}: "
+
+        title += f"{info_json.get('title', '').strip()}"
+
+        if title:
+            hu.timestamped_print(f"Setting the title to:\n'{title}'\n")
+            arg_video.editTitle(title, locked=True)
+        if summary:
+            hu.timestamped_print(f"Setting the summary to:\n'{summary}'\n")
+            arg_video.editSummary(summary, locked=True)
+        return True
 
     hu.log_print(f"Could NOT find any file named: {summary_filename}")
     return False
 
 def playlist(arg_server: str,
              arg_playlist: Union[plexapi.playlist.Playlist, List[plexapi.playlist.Playlist], str, List[str], None] = None,
-             arg_migrate_to_server: Union[str, None] = None) -> List[plexapi.base.Playable]:
+             arg_migrate_to_server: Union[str, None] = None
+             ) -> List[plexapi.base.Playable]:
 
     ''' Default: Get the playlist as a List[plexapi.base.Playable]
         argument arg_playlist --> set this to None to take ALL playlists
@@ -441,7 +405,7 @@ def playlist(arg_server: str,
 
     _server = server(arg_server)
     _new_server = server(arg_migrate_to_server) if arg_migrate_to_server else None
-    print(f"Migrate to: {getattr(_new_server, 'friendlyName', 'Not migrating')}")
+    print(f"Migrate to: {getattr(_new_server, 'friendlyName', '< Not migrating >')}")
 
     if isinstance(arg_playlist, str):
         arg_playlist = _server.playlist(arg_playlist)
@@ -469,6 +433,87 @@ def playlist(arg_server: str,
         res = list(arg_playlist)
     hu.timestamped_print("Done!")
     return res
+
+def playlist_print(arg_playlist: List[plexapi.base.Playable]):
+    ''' Print the playlist in a better way '''
+    for item in arg_playlist:
+        l_title: str = 'unknown'
+        l_show = getattr(item, 'show', None)
+        if l_show:
+            l_title = "Show:  " + l_show().title
+        else:
+            l_title = "Movie: " + item.title
+        print(l_title  + "    " + share(item))
+
+def search_summary(arg_sections: List[plexapi.library.LibrarySection],
+                   arg_regexp: str,
+                   arg_limit_hits: int = 0
+                   ) -> List[plexapi.base.Playable]:
+    ''' Search for a video with text from the summary (description) '''
+
+    if isinstance(arg_sections, plexapi.library.LibrarySection):
+        arg_sections = [arg_sections]
+
+    res = []
+    for l_section in arg_sections:
+        for l_video in l_section.all():
+            l_match = hu.regexp_findall_quick_fix(arg_regexp, l_video.summary, arg_default_return_if_not_found='No match')[0]
+            if l_match != 'No match':
+                res.append(l_video)
+                arg_limit_hits -= 1
+                if arg_limit_hits == 0:
+                    return res
+
+    return res
+
+def collections(arg_server: str, arg_save_to_file: str = None) -> Dict[str, Dict[str, Dict[str, str]]]:
+    ''' Get all collections and their items in a massive dict:
+        
+        {
+            "Movies": {
+                "My favorite movies (collection name)": {
+                    "plex://movie/XXXXXXXXXXXXXXXXXXXXXXXX": "Movie title 1",
+                    "plex://movie/XXXXXXXXXXXXXXXXXXXXXXXX": "Movie title 2",
+                    "plex://movie/XXXXXXXXXXXXXXXXXXXXXXXX": "Movie title 3"
+                }
+            }
+        }
+
+    '''
+    res = {}
+    l_sections = list(sections(arg_server).values())
+    for l_section in l_sections:
+        res[l_section.title] = {}
+        l_collections = l_section.search(libtype='collection')
+        for l_collection in l_collections:
+            res[l_section.title][l_collection.title] = {}
+            for l_video in l_collection:
+                res[l_section.title][l_collection.title][l_video.guid] = l_video.title
+
+
+    if arg_save_to_file:
+        hu.dict_dump_to_json_file(res, arg_save_to_file)
+    return res
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 if __name__ == "__main__":
     import argparse
