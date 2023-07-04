@@ -5,7 +5,7 @@
 TODO: What the module is doing
 """
 
-__version__ = 230114032110
+__version__ = 230702133718
 __author__ = "Harding"
 __description__ = __doc__
 __copyright__ = "Copyright 2023"
@@ -15,65 +15,77 @@ __maintainer__ = "Harding"
 __email__ = "not.at.the.moment@example.com"
 __status__ = "Development"
 
+from typing import Union, Any, Dict, List
+from types import ModuleType
 import logging
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG) # This is the level that is actually used
+import harding_utils as hu
+
+_g_logger = logging.getLogger(__name__)
+_g_logger.setLevel(logging.DEBUG) # This is the level that is actually used
 console_handler = logging.StreamHandler()
 console_handler.setLevel(logging.DEBUG)
 console_handler.setFormatter(logging.Formatter('[%(asctime)s] [%(levelname)s] %(module)s:%(funcName)s:%(lineno)d - %(message)s'))
-if logger.handlers:
-    logger.removeHandler(logger.handlers[0]) # When you importlib.reload() a module, we need to clear out the old logger
-logger.addHandler(console_handler)
+if _g_logger.handlers:
+    _g_logger.removeHandler(_g_logger.handlers[0]) # When you importlib.reload() a module, we need to clear out the old logger
+_g_logger.addHandler(console_handler)
 
-import harding_utils as hu
+def _reload(arg_module: Union[str, ModuleType, None] = None):
+    ''' Internal function. During development, this is nice to have '''
+
+    import importlib
+    import sys
+
+    l_module: str = arg_module if isinstance(arg_module, str) else getattr(arg_module, '__name__', __name__)
+    return importlib.reload(sys.modules[l_module])
 
 def file_work(arg_file: str, arg_update: bool = False) -> str:
     ''' This is all the work done on each file '''
 
-    logger.debug(f"TODO: Work here on {arg_file}")
+    _g_logger.debug("TODO: Starting work on %s", arg_file)
     if arg_update:
-        logger.debug("TODO: it should be an update")
+        _g_logger.debug("TODO: it should be an update")
+    _g_logger.debug("TODO: Ending work on %s", arg_file)
     return f"{arg_file} is done!"
 
-def module_work(arg_files: list, arg_update: bool = False) -> list:
+def module_work(arg_files: list, arg_update: bool = False) -> List[str]:
     ''' This is all the work the module is doing '''
 
-    logger.info("Welcome to TODO: Template!")
-    res = []
+    _g_logger.info("Welcome to TODO: Template!")
+    res: List[str] = []
     for file in arg_files:
         res.append(file_work(file, arg_update))
     return res
 
-def module_main(arg_argv: dict = None) -> list:
+def module_main(arg_argv: Union[Dict[str, Any], None] = None) -> List[str]:
     ''' This function can be used from an interactive prompt such as Ipython or Jupyter '''
 
     if not arg_argv:
         arg_argv = {}
-    debug_mode = arg_argv.get("debug_mode", False)
+    debug_mode: bool = arg_argv.get("debug_mode", False)
 
-    logger.debug("TODO: Sanity check on the keys in the arg_argv")
-    logger.debug(hu.dict_to_json_string_pretty(arg_argv))
+    _g_logger.debug("TODO: Sanity check on the keys in the arg_argv")
+    _g_logger.debug(hu.dict_to_json_string_pretty(arg_argv))
 
-    files = []
+    l_files = []
     if "-" == arg_argv.get('files', [""])[0]:
-        files.append("-")
+        l_files.append("-")
     else:
-        files = hu.adv_glob(arg_argv.get('files', ""), arg_argv.get('check_subfolders', False))
+        l_files = hu.adv_glob(arg_argv.get('files', ""), arg_argv.get('check_subfolders', False))
 
-    if not files:
-        error_msg = "arg_files[] is empty!"
-        logger.critical(error_msg)
+    if not l_files:
+        error_msg: str = "arg_files[] is empty!"
+        _g_logger.critical(error_msg)
         return [error_msg]
 
     if debug_mode:
-        logger.debug("Entering debug mode")
+        _g_logger.debug("Entering debug mode")
 
-    return module_work(arg_files=files, arg_update=arg_argv.get('update', False))
+    return module_work(arg_files=l_files, arg_update=arg_argv.get('update', False))
 
 if __name__ == "__main__":
     import argparse
 
-    version = f"v{__version__} by {__author__} {__email__}"
+    version = f"version {__version__} by {__author__} {__email__}"
     parser = argparse.ArgumentParser(
         description=f"{__description__} {version}")
     parser.add_argument("-s", "--subfolders", action="store_true",
@@ -83,6 +95,6 @@ if __name__ == "__main__":
     parser.add_argument("files", nargs="+")
     args = parser.parse_args()
 
-    main_res = module_main(args.__dict__)
-    for r in main_res:
-        logger.info(r)
+    l_main_res: List[str] = module_main(args.__dict__)
+    for r in l_main_res:
+        _g_logger.info(r)
