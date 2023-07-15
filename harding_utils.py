@@ -25,8 +25,9 @@ import inspect as _inspect
 import json
 import glob
 import re
-from typing import Union, Dict, List, Tuple, Set, TypeVar, Any
 import decimal
+from typing import Union, Dict, List, Tuple, Set, TypeVar, Any
+from types import ModuleType
 
 use_natsort = True
 try: # It will function without this sorting
@@ -35,13 +36,12 @@ except ImportError:
     use_natsort = False
     print("WARNING: Module natsort not installed, this module is not required but strongly recommended. pip install natsort")
 
-
 __user_agent__ = 'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.93 Safari/537.36'
 
 def adv_glob(arg_paths: Union[List[str], str], arg_recursive: bool = False, arg_supress_errors: bool = False, arg_debug: bool = False) -> List[str]:
     ''' Returns a list of files (with full path) that matches a list of filters.
         Example arg_paths: c:\\a.txt c:\\a\\folder1 folder* folder1 folder2\\ folder1\\* fodler5 non-existant_file.txt folder2 *.log
-    
+
         # TODO: Rewrite this function with https://docs.python.org/3/library/pathlib.html#pathlib.Path
         # TODO: If I give "file1.mp4 *.mp4" This should expand the *.mp4 (which include file1.mp4) but only handle that file once.
         # This is for doing something on many files but prio the first one
@@ -56,7 +56,7 @@ def adv_glob(arg_paths: Union[List[str], str], arg_recursive: bool = False, arg_
         arg_paths_list = arg_paths
     else:
         raise ValueError(f"argument arg_paths is: {type(arg_paths)} and I can only handle str or list")
-    
+
     # arg_paths_list = arg_paths # TODO: Investigate
     for i in arg_paths_list:
         # file_filters becomes "*.*" if you give them without any filter
@@ -98,10 +98,16 @@ def adv_glob(arg_paths: Union[List[str], str], arg_recursive: bool = False, arg_
     return_list.extend(_list_of_urls)
     return return_list
 
-def list_of_files(arg_folder: str, arg_filters: Union[None, str, List, Set, Tuple] = "*", arg_recursive: bool = False, arg_supress_errors: bool = False, arg_debug: bool = False) -> list:
+def list_of_files(arg_folder: str,
+                  arg_filters: Union[None, str, List, Set, Tuple] = "*",
+                  arg_recursive: bool = False,
+                  arg_supress_errors: bool = False,
+                  arg_debug: bool = False) -> List[str]:
     """ Helper funtion to adv_glob """
-    return_list = []
+    res: List[str] = []
     filters = list_from_str(arg_filters)
+    if not filters:
+        return res
     debug("list_of_files() arg_folder = " + arg_folder + ", argfilters = " + str(filters) + "", not arg_debug)
     # Add all files matching the filter. OBS! No folders whatsoever
     for i in filters:
@@ -112,7 +118,7 @@ def list_of_files(arg_folder: str, arg_filters: Union[None, str, List, Set, Tupl
         debug("list_of_files() Globbing " + os.path.join(arg_folder, i) + " = " + str(the_glob_list), not arg_debug)
         for j in the_glob_list:
             if os.path.isfile(j):
-                return_list.append(j)
+                res.append(j)
 
     # If we should be recursive then do this for all folders
     if arg_recursive:
@@ -120,18 +126,26 @@ def list_of_files(arg_folder: str, arg_filters: Union[None, str, List, Set, Tupl
         try:
             sub_folders = os.listdir(arg_folder)
         except:
-            warning_print("Warning: Could not open \"" + arg_folder + "\" for file listing")
+            warning_print("Could not open \"" + arg_folder + "\" for file listing")
         for i in sub_folders:
             if os.path.isdir(os.path.join(arg_folder, i)):
-                return_list.extend(list_of_files(os.path.join(arg_folder, i), arg_filters, arg_recursive, arg_supress_errors, arg_debug))
-    return return_list
+                res.extend(list_of_files(os.path.join(arg_folder, i), arg_filters, arg_recursive, arg_supress_errors, arg_debug))
+    return res
 
 def ensure_dir(arg_full_path: str):
     _dirs = os.path.dirname(arg_full_path)
     if not os.path.exists(_dirs):
         os.makedirs(_dirs)
 
-def download_file(arg_url: str, arg_proxy_string_to_curl: str = "", arg_origin: str = "", arg_referer: str = "", arg_local_filename: Union[str, None] = None, arg_check_remote_filesize: bool = False, arg_max_num_bytes: int = 0, arg_rate_limit: str = "100M") -> str:
+def download_file(arg_url: str, #pylint: disable=too-many-arguments
+                  arg_proxy_string_to_curl: str = "",
+                  arg_origin: str = "",
+                  arg_referer: str = "",
+                  arg_local_filename: Union[str, None] = None,
+                  arg_check_remote_filesize: bool = False,
+                  arg_max_num_bytes: int = 0,
+                  arg_rate_limit: str = "100M"
+                  ) -> str:
     """ Download a file with CURL and look like a normal web browser """
 
     if not arg_local_filename:
@@ -169,7 +183,7 @@ def download_file(arg_url: str, arg_proxy_string_to_curl: str = "", arg_origin: 
     curl_command += f' -o "{arg_local_filename}"'
     curl_command += ' --continue-at -' # https://curl.se/docs/manpage.html#-C
     curl_command += f' "{arg_url}"'
-    timestamped_print("\n\n" + curl_command + "\n\n")
+    timestamped_print("\n\n" + curl_command + "\n\n", arg_force_flush=True)
     if 0 == os.system(curl_command):
         return arg_local_filename
     error_print(f'Curl failed to download "{arg_url}"')
@@ -197,7 +211,13 @@ def _file_and_line_number(arg_num_function_away: int = 2) -> _inspect.Traceback:
     info = _inspect.getframeinfo(frame)                              # info.filename, info.function, info.lineno
     return info
 
-def log_print(arg_string: str, arg_actually_log: bool = True, arg_type: str = "DEBUG", arg_file = sys.stdout, arg_force_flush: bool = False, arg_num_function_away: int = 2) -> None:
+def log_print(arg_string: str, #pylint: disable=too-many-arguments
+              arg_actually_log: bool = True,
+              arg_type: str = "DEBUG",
+              arg_file = sys.stdout,
+              arg_force_flush: bool = False,
+              arg_num_function_away: int = 2
+              ) -> None:
     ''' Used for outputing code trace while development '''
     if arg_actually_log:
         info = _file_and_line_number(arg_num_function_away)
@@ -217,6 +237,8 @@ def debug(exp: _ExpType, arg_supress_output: bool = False, arg_out_handle = sys.
         return exp
 
     for frame in _inspect.stack():
+        if not frame.code_context:
+            break
         line = frame.code_context[0]
         start = line.find('debug(') + 1
 
@@ -253,36 +275,34 @@ def debug(exp: _ExpType, arg_supress_output: bool = False, arg_out_handle = sys.
 
     return exp
 
-def console_color(arg_string, arg_color = "OKGREEN") -> str:
+def console_color(arg_string: str, arg_color: str = "OKGREEN") -> str:
     ''' Returns a new string with console marker at the start and at the end '''
-    _console_color = {}
-    _console_color["HEADER"] = '\033[95m'
-    _console_color["OKBLUE"] = '\033[94m'
-    _console_color["OKGREEN"] = '\033[92m'
-    _console_color["WARNING"] = '\033[93m'
-    _console_color["FAIL"] = '\033[91m'
-    _console_color["BOLD"] = '\033[1m'
-    _console_color["UNDERLINE"] = '\033[m'
-    _console_color["RED"] = '\033[31m'
-    _console_color["YELLOW"] = '\033[33m'
-    _console_color["CYAN"] = '\033[36m'
-    _console_color["MAGENTA"] = '\033[35m'
-    _console_color["WHITE"] = '\033[37m'
-    _console_color["ENDC"] = '\033[0m' # Use this to go back to normal color
+    l_console_color = {}
+    l_console_color["HEADER"] = '\033[95m'
+    l_console_color["OKBLUE"] = '\033[94m'
+    l_console_color["OKGREEN"] = '\033[92m'
+    l_console_color["WARNING"] = '\033[93m'
+    l_console_color["FAIL"] = '\033[91m'
+    l_console_color["BOLD"] = '\033[1m'
+    l_console_color["UNDERLINE"] = '\033[m'
+    l_console_color["RED"] = '\033[31m'
+    l_console_color["YELLOW"] = '\033[33m'
+    l_console_color["CYAN"] = '\033[36m'
+    l_console_color["MAGENTA"] = '\033[35m'
+    l_console_color["WHITE"] = '\033[37m'
+    l_console_color["ENDC"] = '\033[0m' # Use this to go back to normal color
 
-    # return "%s%s%s" % (console_color[arg_color], arg_string, console_color["ENDC"])
-    return f'{_console_color[arg_color]}{arg_string}{_console_color["ENDC"]}'
+    if arg_color not in l_console_color:
+        warning_print(f"No such color: {arg_color}")
+        return arg_string
+
+    return f'{l_console_color[arg_color]}{arg_string}{l_console_color["ENDC"]}'
 
 def warning_print(arg_string: str):
-    warning = _file_and_line_number()
-    timestamped_print(console_color(f"WARNING {warning.function}:{warning.lineno:03d} = {arg_string}", "WARNING"))
-
-def error_string(arg_string: str, arg_num_function_away: int = 2) -> str:
-    error = _file_and_line_number(arg_num_function_away)
-    return f"ERROR {error.function}:{error.lineno} = {arg_string}"
+    log_print(arg_type="WARNING", arg_string=console_color(arg_string, arg_color="WARNING"), arg_num_function_away=3)
 
 def error_print(arg_string: str):
-    timestamped_print(console_color(error_string(arg_string, arg_num_function_away = 3), "FAIL"))
+    log_print(arg_type="ERROR", arg_string=console_color(arg_string, arg_color="FAIL"), arg_num_function_away=3)
 
 def success_print(arg_string: str):
     timestamped_print(console_color(f"SUCCESS! {arg_string}", "HEADER"))
@@ -309,7 +329,9 @@ def dict_get_key_from_value(arg_dict: dict, arg_value):
 def dict_sort(arg_dict: dict, arg_sort_by_value: bool = False, arg_desc: bool = False) -> dict:
     ''' Returns a new sorted dictionary '''
     res = {}
-    sort_function = natsort.natsorted if use_natsort else sorted
+    sort_function = sorted
+    if use_natsort:
+        sort_function = natsort.natsorted
     if arg_sort_by_value:
         res = dict(sort_function(arg_dict.items(), key=lambda item: item[1])) # Sort by value ( lower -> higher )
     else:
@@ -340,7 +362,7 @@ def dict_dump_to_json_file(arg_dict: Union[dict, list], arg_filename: str) -> bo
     if isinstance(arg_dict, str) and isinstance(arg_filename, dict): # Sometimes I mix up the order, if I do then just make the code fix it for me
         arg_dict, arg_filename = arg_filename, arg_dict
 
-    if not (isinstance(arg_dict, dict) or isinstance(arg_dict, list)) or not isinstance(arg_filename, str):
+    if not (isinstance(arg_dict, (dict, list))) or not isinstance(arg_filename, str):
         raise ValueError(f'Invalid arguments. arg_dict is of type: {type(arg_dict)} and arg_filename is of type: {type(arg_filename)}')
 
     data = dict_to_json_string_pretty(arg_dict)
@@ -367,11 +389,11 @@ def dict_list_to_massive_dict(arg_list: List[Any], arg_key) -> Union[Dict, None]
         res[str(item[arg_key])] = item # There is a "bug" in Python that JSON keys is always string but Python can have ints as keys: https://stackoverflow.com/a/1451857
     return res
 
-def json_make_file_clean(arg_filename: str) -> bool:
-    return dict_dump_to_json_file(dict_load_json_file(arg_filename), arg_filename)
-
 def dict_add(arg_original: dict, arg_updated: dict, arg_let_original_values_be: bool = False) -> dict:
-    ''' First dict is the original, the next arg is the new dict you want to add on top (overwriting keys that already exists) '''
+    ''' First dict is the original, the next arg is the new dict you want to add on top (overwriting keys that already exists)
+
+    TODO: dict.update() can be used?
+    '''
     res = arg_original.copy()
     for k, v in arg_updated.items():
         if arg_let_original_values_be and k in res:
@@ -406,16 +428,19 @@ def dict_intersect(arg_left: dict, arg_right: dict) -> dict:
 
 # End of dict helpers
 
-def smart_filesystem_safe_path(arg_file_path: Union[str], arg_allow_swedish_chars: bool = False, arg_fix_season_and_episodes: bool = True,  arg_replacement_char: str = '.') -> str:
+def smart_filesystem_safe_path(arg_file_path: Union[str],
+                               arg_allow_swedish_chars: bool = False,
+                               arg_fix_season_and_episodes: bool = True,
+                               arg_replacement_char: str = '.') -> str:
     ''' Make a long and weird string into something that the OS likes more to handle '''
     res = str(arg_file_path)
-    
-    dir = ''
+
+    l_dir = ''
     if arg_file_path[1] == ':' and arg_file_path[2] == '\\': # Full path: C:\dir\file.txt
         arg_file_path = arg_file_path[0].upper() + arg_file_path[1:] # I like when the drive letter is uppercase
-        dir = os.path.dirname(arg_file_path)
+        l_dir = os.path.dirname(arg_file_path)
         res = os.path.basename(arg_file_path)
-    
+
     if not arg_allow_swedish_chars:
         res = res.replace("å", "a")
         res = res.replace("ä", "a")
@@ -423,7 +448,7 @@ def smart_filesystem_safe_path(arg_file_path: Union[str], arg_allow_swedish_char
         res = res.replace("Å", "A")
         res = res.replace("Ä", "A")
         res = res.replace("Ö", "O")
-    
+
     res = res.replace("https://", "")
     res = res.replace("http://", "")
     res = res.replace("\\", arg_replacement_char)
@@ -448,11 +473,11 @@ def smart_filesystem_safe_path(arg_file_path: Union[str], arg_allow_swedish_char
     res = res.replace("–.", arg_replacement_char)
 
     if arg_fix_season_and_episodes:
-        res = re.sub('sasong.(\d\d?).avsnitt.(\d\d?)', 'S0\\1E0\\2', res, flags=re.IGNORECASE) # Swedish naming: Säsong-1-avsnitt-1 --> S01E01
-        res = re.sub(f'([{arg_replacement_char}])S0(\d\d)E(\d\d?\d?)', '\\1S\\2E\\3', res, flags=re.IGNORECASE) # Fix Season numbers 'S011' --> 'S11'
-        res = re.sub(f'([{arg_replacement_char}])S(\d\d)E0(\d\d)', '\\1S\\2E\\3', res, flags=re.IGNORECASE) # Fix episode numbers 'E012' --> 'E12'
+        res = re.sub(r'sasong.(\d\d?).avsnitt.(\d\d?)', 'S0\\1E0\\2', res, flags=re.IGNORECASE) # Swedish naming: Säsong-1-avsnitt-1 --> S01E01
+        res = re.sub(fr'([{arg_replacement_char}])S0(\d\d)E(\d\d?\d?)', '\\1S\\2E\\3', res, flags=re.IGNORECASE) # Fix Season numbers 'S011' --> 'S11'
+        res = re.sub(fr'([{arg_replacement_char}])S(\d\d)E0(\d\d)', '\\1S\\2E\\3', res, flags=re.IGNORECASE) # Fix episode numbers 'E012' --> 'E12'
 
-    res = os.path.join(dir, res)
+    res = os.path.join(l_dir, res)
     while res != res.replace('__', arg_replacement_char):
         res = res.replace('__', arg_replacement_char)
     while res != res.replace('  ', arg_replacement_char):
@@ -461,16 +486,25 @@ def smart_filesystem_safe_path(arg_file_path: Union[str], arg_allow_swedish_char
         res = res.replace('..', arg_replacement_char)
     return res
 
-def regexp_findall_quick_fix(arg_needle: str, arg_haystack: str, arg_default_return_if_not_found: list = None) -> list:
+def regexp_findall_quick_fix(arg_needle: str,
+                             arg_haystack: str,
+                             arg_default_return_if_not_found: Union[List[str], None] = None
+                             ) -> List[str]:
+    ''' # TODO: Write docstring '''
     m = re.findall(arg_needle, arg_haystack)
     if m:
         return m
 
     if not arg_default_return_if_not_found:
         return ['<< Not found >>']
-    return arg_default_return_if_not_found #  Looks like this: [("first group of first full match", "second group of first full match"), ("first group of second full match", "second group of second full match")]
 
-def get_size_as_B_KB_MB_GB(arg_size: float, arg_force_unit: bool = False) -> str:
+    if not isinstance(arg_default_return_if_not_found, list):
+        arg_default_return_if_not_found = [arg_default_return_if_not_found]
+    #  Return looks like this: [("first group of first full match", "second group of first full match"),
+    #                           ("first group of second full match", "second group of second full match")]
+    return arg_default_return_if_not_found
+
+def get_size_as_B_KB_MB_GB(arg_size: Union[float, int], arg_force_unit: bool = False) -> str:
     del arg_force_unit # TODO: arg_force_unit is not implemented yet
     units = ["B", "KB", "MB", "GB", "TB"]
     temp = float(arg_size)
@@ -532,7 +566,7 @@ def text_write_whole_file(arg_filename: str, arg_text: str) -> bool:
     return True
 
 def text_read_whole_file(arg_filename_or_url: str) -> Union[str, None]:
-    arg_filename_or_url = str(arg_filename_or_url) # This will handle pathlib.Path 
+    arg_filename_or_url = str(arg_filename_or_url) # This will handle pathlib.Path
     if "http" == arg_filename_or_url[0:4].lower():
         _tmp = download_file(arg_filename_or_url)
         res = text_read_whole_file(_tmp)
@@ -552,10 +586,12 @@ def math_nthroot(x: Union[int, float, decimal.Decimal], n: Union[int, float, dec
     ''' Returns the n:th root of x. Example: x=729, n=3 --> 9 '''
     return decimal.Decimal(pow(decimal.Decimal(x), decimal.Decimal(1)/decimal.Decimal(n)))
 
-def list_from_str(arg_str: Union[str, List, Set, Tuple, None], arg_re_splitter: str = ' |,|;|:|[+]|[-]|[|]|[\n]|[\r]') -> Union[List[str], None]:
+def list_from_str(arg_str: Union[str, List, Set, Tuple, None],
+                  arg_re_splitter: str = ' |,|;|:|[+]|[-]|[|]|[\n]|[\r]'
+                  ) -> Union[List[str], None]:
     ''' Take a str and try to convert into a list of str in a smart way.
     Returns None if something breaks. '''
-    
+
     if arg_str is None:
         return []
     if isinstance(arg_str, list):
@@ -567,32 +603,55 @@ def list_from_str(arg_str: Union[str, List, Set, Tuple, None], arg_re_splitter: 
     else:
         print(f"ERROR! arg_str is of type: {type(arg_str)} which I cannot handle!")
         return None
-    
+
     res = [x for x in res if x]
     return res
 
-def table_from_html(arg_url: str) -> list:
+def table_from_html(arg_url: str) -> List[List[str]]:
     from bs4 import BeautifulSoup # Imported here since it's an external lib
 
-    _table = []
+    res: List[List[str]] = []
     page = text_read_whole_file(arg_url)
+    if not page:
+        return res
     html_page = BeautifulSoup(page, "html.parser")
     rows = html_page.find_all("tr")
     for row in rows:
-        row_list = []
+        row_list: List[str] = []
 
         values = row.find_all("td")
         for value in values:
             value_text = value.encode_contents().strip().decode("UTF-8")
             row_list.append(value_text)
         if len(row_list) > 0:
-            _table.append(row_list)
-    return _table
+            res.append(row_list)
+    return res
 
 def html_unicode_to_entities(arg_text: str) -> str:
     '''Converts unicode to HTML entities.  For example '&' becomes '&amp;' '''
-    import namedentities
+    import namedentities # type: ignore
     return namedentities.hex_entities(arg_text)
+
+def file_delete(arg_filename: str) -> bool:
+    ''' If the file exists, then delete it. If it does NOT exist, just return True
+
+        Returns True if at the end of this function there is no file name arg_filename.
+        Will return True even if there never was a file named that.
+    '''
+    arg_filename = str(arg_filename) # This will handle pathlib.Path
+    if os.path.exists(arg_filename):
+        os.remove(arg_filename)
+    return not os.path.exists(arg_filename)
+
+def reload(arg_module: Union[str, ModuleType, None] = None):
+    ''' During development, this is nice to have '''
+
+    import importlib
+
+    l_module: str = arg_module if isinstance(arg_module, str) else getattr(arg_module, '__name__', __name__)
+    return importlib.reload(sys.modules[l_module])
+
+
 
 def main():
     timestamped_print("This module contains many good helper functions.")
