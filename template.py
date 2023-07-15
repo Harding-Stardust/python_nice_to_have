@@ -5,7 +5,7 @@
 TODO: What the module is doing
 """
 
-__version__ = 230702133718
+__version__ = 230715180421
 __author__ = "Harding"
 __description__ = __doc__
 __copyright__ = "Copyright 2023"
@@ -18,6 +18,7 @@ __status__ = "Development"
 from typing import Union, Any, Dict, List
 from types import ModuleType
 import logging
+from typeguard import typechecked
 import harding_utils as hu
 
 _g_logger = logging.getLogger(__name__)
@@ -29,6 +30,7 @@ if _g_logger.handlers:
     _g_logger.removeHandler(_g_logger.handlers[0]) # When you importlib.reload() a module, we need to clear out the old logger
 _g_logger.addHandler(console_handler)
 
+@typechecked
 def _reload(arg_module: Union[str, ModuleType, None] = None):
     ''' Internal function. During development, this is nice to have '''
 
@@ -38,6 +40,7 @@ def _reload(arg_module: Union[str, ModuleType, None] = None):
     l_module: str = arg_module if isinstance(arg_module, str) else getattr(arg_module, '__name__', __name__)
     return importlib.reload(sys.modules[l_module])
 
+@typechecked
 def file_work(arg_file: str, arg_update: bool = False) -> str:
     ''' This is all the work done on each file '''
 
@@ -47,7 +50,8 @@ def file_work(arg_file: str, arg_update: bool = False) -> str:
     _g_logger.debug("TODO: Ending work on %s", arg_file)
     return f"{arg_file} is done!"
 
-def module_work(arg_files: list, arg_update: bool = False) -> List[str]:
+@typechecked
+def module_work(arg_files: List[str], arg_update: bool = False) -> List[str]:
     ''' This is all the work the module is doing '''
 
     _g_logger.info("Welcome to TODO: Template!")
@@ -56,6 +60,7 @@ def module_work(arg_files: list, arg_update: bool = False) -> List[str]:
         res.append(file_work(file, arg_update))
     return res
 
+@typechecked
 def module_main(arg_argv: Union[Dict[str, Any], None] = None) -> List[str]:
     ''' This function can be used from an interactive prompt such as Ipython or Jupyter '''
 
