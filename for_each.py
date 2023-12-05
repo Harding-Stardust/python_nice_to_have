@@ -32,12 +32,11 @@ def do_exec(command: str, arg_file: str, arg_index: int, number_of_files: int, s
         percent_done = arg_index / number_of_files
         time_elapsed = time.time() - started
         estimated_total_time = time_elapsed / percent_done
-        with open(print_progress_to_file, "w", encoding='utf8', newline='\n') as fdesc:
+        with open(print_progress_to_file, "w", encoding='utf8', newline='\n') as fdesc: # TODO: This might be buggy, verify
             hu.log_print(f"File {arg_index} / {number_of_files} ({percent_done * 100:.3f}%) estimated {(estimated_total_time - time_elapsed + 1)/60:0.0f}m left. Have been running for {time_elapsed:0.0f} seconds. Current file: \"{arg_file}\"",
                 arg_type="PROGRESS",
                 arg_file=fdesc,
-                arg_force_flush=True,
-                )
+                arg_force_flush=True)
 
     command = command.replace("%file", arg_file)
     os.system(command)
@@ -45,7 +44,7 @@ def do_exec(command: str, arg_file: str, arg_index: int, number_of_files: int, s
 if __name__ == '__main__':
     import sys
     import argparse
-    
+
     parser = argparse.ArgumentParser(description=f"python {sys.argv[0]} \"string to be os.system() by Python\" file_1 [file_2 ... file_n] Example: python {sys.argv[0]} \"echo I will work on the file: \\\"%file\\\"\" *.py")
     parser.add_argument("-s", "--subfolders", action="store_true", dest="check_subfolders", help="Look in subfolders. Default: False", default=False)
     parser.add_argument("-f", "--file", action="store_true", dest="file_list", help="The file given contains filenames to work on. Default: False", default=False)
@@ -60,7 +59,7 @@ if __name__ == '__main__':
         files.append("-")
     else:
         files = hu.adv_glob(args.file, args.check_subfolders)
-        
+
     start_time = time.time()
 
     if use_natsort and not args.file_list:
@@ -83,5 +82,3 @@ if __name__ == '__main__':
                 do_exec(args.command.strip(), line, index, len(files), start_time, args.progress_file)
         else:
             do_exec(args.command.strip(), file, index, len(files), start_time, args.progress_file)
-    #os.system("pause")
-    

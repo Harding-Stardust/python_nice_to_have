@@ -7,7 +7,7 @@ This module contains many helper functions to make some parts of your life easie
 In general I try to have the first word in the function connected to what the function is working on for easier tab completion.
 """
 
-__version__ = 230217121512
+__version__ = 230715183847
 __author__ = "Harding"
 __copyright__ = "Copyright 2023"
 __credits__ = ["Many random ppl on the Internet"]
@@ -650,8 +650,6 @@ def reload(arg_module: Union[str, ModuleType, None] = None):
 
     l_module: str = arg_module if isinstance(arg_module, str) else getattr(arg_module, '__name__', __name__)
     return importlib.reload(sys.modules[l_module])
-
-
 
 def main():
     timestamped_print("This module contains many good helper functions.")
