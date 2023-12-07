@@ -5,7 +5,7 @@
 TODO: What the module is doing
 """
 
-__version__ = 230715180421
+__version__ = 231208_003600
 __author__ = "Harding"
 __description__ = __doc__
 __copyright__ = "Copyright 2023"
@@ -15,20 +15,31 @@ __maintainer__ = "Harding"
 __email__ = "not.at.the.moment@example.com"
 __status__ = "Development"
 
+STRICT_TYPES = True # If you want to have stict type checking: pip install typeguard
+
 from typing import Union, Any, Dict, List
-from types import ModuleType
 import logging
-from typeguard import typechecked
+from types import ModuleType
 import harding_utils as hu
+try:
+    if not STRICT_TYPES:
+        raise ImportError("Skipping the import of typeguard reason: STRICT_TYPES == False")
+    from typeguard import typechecked
+except:
+    from typing import TypeVar
+    _T = TypeVar("_T")
+
+    def typechecked(target: _T, **kwargs) -> _T:
+        return target if target else typechecked
 
 _g_logger = logging.getLogger(__name__)
 _g_logger.setLevel(logging.DEBUG) # This is the level that is actually used
-console_handler = logging.StreamHandler()
-console_handler.setLevel(logging.DEBUG)
-console_handler.setFormatter(logging.Formatter('[%(asctime)s] [%(levelname)s] %(module)s:%(funcName)s:%(lineno)d - %(message)s'))
+_console_handler = logging.StreamHandler()
+_console_handler.setLevel(logging.DEBUG)
+_console_handler.setFormatter(logging.Formatter('[%(asctime)s] [%(levelname)s] %(module)s:%(funcName)s:%(lineno)d - %(message)s'))
 if _g_logger.handlers:
     _g_logger.removeHandler(_g_logger.handlers[0]) # When you importlib.reload() a module, we need to clear out the old logger
-_g_logger.addHandler(console_handler)
+_g_logger.addHandler(_console_handler)
 
 @typechecked
 def _reload(arg_module: Union[str, ModuleType, None] = None):
@@ -64,11 +75,12 @@ def module_work(arg_files: List[str], arg_update: bool = False) -> List[str]:
 def module_main(arg_argv: Union[Dict[str, Any], None] = None) -> List[str]:
     ''' This function can be used from an interactive prompt such as Ipython or Jupyter '''
 
-    if not arg_argv:
+    if arg_argv is None:
         arg_argv = {}
     debug_mode: bool = arg_argv.get("debug_mode", False)
 
     _g_logger.debug("TODO: Sanity check on the keys in the arg_argv")
+    _g_logger.debug("arg_argv looks like:")
     _g_logger.debug(hu.dict_to_json_string_pretty(arg_argv))
 
     l_files = []
