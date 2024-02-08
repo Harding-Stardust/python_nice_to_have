@@ -5,10 +5,10 @@
 TODO: What the module is doing
 """
 
-__version__ = 231208_003600
+__version__ = 240208_212939
 __author__ = "Harding"
 __description__ = __doc__
-__copyright__ = "Copyright 2023"
+__copyright__ = "Copyright 2024"
 __credits__ = ["Other projects"]
 __license__ = "GPL"
 __maintainer__ = "Harding"
@@ -18,7 +18,7 @@ __status__ = "Development"
 STRICT_TYPES = True # If you want to have stict type checking: pip install typeguard
 
 from typing import Union, Any, Dict, List
-import logging
+import logging # TODO: Change to loguru? https://github.com/Delgan/loguru
 from types import ModuleType
 import harding_utils as hu
 try:
@@ -26,11 +26,12 @@ try:
         raise ImportError("Skipping the import of typeguard reason: STRICT_TYPES == False")
     from typeguard import typechecked
 except:
+    STRICT_TYPES = False
     from typing import TypeVar
     _T = TypeVar("_T")
 
-    def typechecked(target: _T, **kwargs) -> _T:
-        return target if target else typechecked
+    def typechecked(target: _T, **kwargs) -> _T: # type: ignore
+        return target if target else typechecked # type: ignore
 
 _g_logger = logging.getLogger(__name__)
 _g_logger.setLevel(logging.DEBUG) # This is the level that is actually used

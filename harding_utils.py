@@ -7,9 +7,9 @@ This module contains many helper functions to make some parts of your life easie
 In general I try to have the first word in the function connected to what the function is working on for easier tab completion.
 """
 
-__version__ = 230715183847
+__version__ = 240208_221823
 __author__ = "Harding"
-__copyright__ = "Copyright 2023"
+__copyright__ = "Copyright 2024"
 __credits__ = ["Many random ppl on the Internet"]
 __license__ = "GPL"
 __maintainer__ = "Harding"
@@ -22,12 +22,24 @@ import io
 import datetime
 import time
 import inspect as _inspect
+import pathlib
 import json
 import glob
 import re
 import decimal
 from typing import Union, Dict, List, Tuple, Set, TypeVar, Any
 from types import ModuleType
+STRICT_TYPES = True # If you want to have stict type checking: pip install typeguard
+try:
+    if not STRICT_TYPES:
+        raise ImportError("Skipping the import of typeguard reason: STRICT_TYPES == False")
+    from typeguard import typechecked
+except:
+    STRICT_TYPES = False
+    _T = TypeVar("_T")
+
+    def typechecked(target: _T, **kwargs) -> _T: # type: ignore
+        return target if target else typechecked # type: ignore
 
 use_natsort = True
 try: # It will function without this sorting
@@ -36,8 +48,9 @@ except ImportError:
     use_natsort = False
     print("WARNING: Module natsort not installed, this module is not required but strongly recommended. pip install natsort")
 
-__user_agent__ = 'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.93 Safari/537.36'
+__user_agent__: str = 'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.93 Safari/537.36'
 
+@typechecked
 def adv_glob(arg_paths: Union[List[str], str], arg_recursive: bool = False, arg_supress_errors: bool = False, arg_debug: bool = False) -> List[str]:
     ''' Returns a list of files (with full path) that matches a list of filters.
         Example arg_paths: c:\\a.txt c:\\a\\folder1 folder* folder1 folder2\\ folder1\\* fodler5 non-existant_file.txt folder2 *.log
@@ -98,6 +111,7 @@ def adv_glob(arg_paths: Union[List[str], str], arg_recursive: bool = False, arg_
     return_list.extend(_list_of_urls)
     return return_list
 
+@typechecked
 def list_of_files(arg_folder: str,
                   arg_filters: Union[None, str, List, Set, Tuple] = "*",
                   arg_recursive: bool = False,
@@ -132,11 +146,13 @@ def list_of_files(arg_folder: str,
                 res.extend(list_of_files(os.path.join(arg_folder, i), arg_filters, arg_recursive, arg_supress_errors, arg_debug))
     return res
 
+@typechecked
 def ensure_dir(arg_full_path: str):
     _dirs = os.path.dirname(arg_full_path)
     if not os.path.exists(_dirs):
         os.makedirs(_dirs)
 
+@typechecked
 def download_file(arg_url: str, #pylint: disable=too-many-arguments
                   arg_proxy_string_to_curl: str = "",
                   arg_origin: str = "",
@@ -189,6 +205,7 @@ def download_file(arg_url: str, #pylint: disable=too-many-arguments
     error_print(f'Curl failed to download "{arg_url}"')
     return "ERROR: CURL FAILED!" # TODO: return None?
 
+@typechecked
 def now_nice_format(arg_filename_safe: bool = False, arg_utc: bool = False) -> str:
     """ Helper function for timestamped_line() """
 
@@ -198,12 +215,15 @@ def now_nice_format(arg_filename_safe: bool = False, arg_utc: bool = False) -> s
         return smart_filesystem_safe_path(res)
     return res
 
+@typechecked
 def timestamped_line(arg_str: str = "") -> str:
     return f"[{now_nice_format()}] {arg_str}"
 
+@typechecked
 def timestamped_print(arg_str: str = "", arg_file = sys.stdout, arg_force_flush: bool = False):
     print(timestamped_line(arg_str), file=arg_file, flush=arg_force_flush)
 
+@typechecked
 def _file_and_line_number(arg_num_function_away: int = 2) -> _inspect.Traceback:
     ''' Internal function. Used in log_print() '''
     callerframerecord = _inspect.stack()[arg_num_function_away]      # 0 represents this line
@@ -211,6 +231,7 @@ def _file_and_line_number(arg_num_function_away: int = 2) -> _inspect.Traceback:
     info = _inspect.getframeinfo(frame)                              # info.filename, info.function, info.lineno
     return info
 
+@typechecked
 def log_print(arg_string: str, #pylint: disable=too-many-arguments
               arg_actually_log: bool = True,
               arg_type: str = "DEBUG",
@@ -231,10 +252,11 @@ def log_print(arg_string: str, #pylint: disable=too-many-arguments
         timestamped_print(arg_str=log_line, arg_file=arg_file, arg_force_flush=arg_force_flush)
 
 _ExpType = TypeVar('_ExpType')
-def debug(exp: _ExpType, arg_supress_output: bool = False, arg_out_handle = sys.stderr) -> _ExpType:
-    ''' Modded version of pydbg '''
+@typechecked
+def debug(arg_exp: _ExpType, arg_supress_output: bool = False, arg_out_handle = sys.stderr) -> _ExpType:
+    ''' Modded version of pydbg. TODO: Maybe replace this with iceream? https://github.com/gruns/icecream    pip install icecream '''
     if arg_supress_output:
-        return exp
+        return arg_exp
 
     for frame in _inspect.stack():
         if not frame.code_context:
@@ -243,7 +265,7 @@ def debug(exp: _ExpType, arg_supress_output: bool = False, arg_out_handle = sys.
         start = line.find('debug(') + 1
 
         if start:
-            exp_str = find_matching_brackets(line[start - 1:], arg_opening_brackets = '(')
+            exp_str = find_matching_brackets(line[start - 1:], arg_opening_brackets='(')
             if exp_str:
                 exp_str = exp_str[6:-1] # Strip  the 'debug(' and the trailing ')'
 
@@ -268,13 +290,14 @@ def debug(exp: _ExpType, arg_supress_output: bool = False, arg_out_handle = sys.
             # print(b, file=arg_out_handle)
 
             timestamped_print(
-                f" {frame.filename}:{frame.lineno}: {exp_res} --> {exp!r}",
+                f"DEBUG: {frame.filename}:{frame.lineno}: {exp_res} --> {arg_exp!r}",
                 arg_file=arg_out_handle,
             )
             break
 
-    return exp
+    return arg_exp
 
+@typechecked
 def console_color(arg_string: str, arg_color: str = "OKGREEN") -> str:
     ''' Returns a new string with console marker at the start and at the end '''
     l_console_color = {}
@@ -298,16 +321,20 @@ def console_color(arg_string: str, arg_color: str = "OKGREEN") -> str:
 
     return f'{l_console_color[arg_color]}{arg_string}{l_console_color["ENDC"]}'
 
+@typechecked
 def warning_print(arg_string: str):
     log_print(arg_type="WARNING", arg_string=console_color(arg_string, arg_color="WARNING"), arg_num_function_away=3)
 
+@typechecked
 def error_print(arg_string: str):
     log_print(arg_type="ERROR", arg_string=console_color(arg_string, arg_color="FAIL"), arg_num_function_away=3)
 
+@typechecked
 def success_print(arg_string: str):
-    timestamped_print(console_color(f"SUCCESS! {arg_string}", "HEADER"))
+    log_print(arg_type="SUCCESS", arg_string=console_color(arg_string, arg_color="HEADER"), arg_num_function_away=3)
+    # timestamped_print(console_color(f"SUCCESS {arg_string}", "HEADER"))
 
-# Dictionaries are nice to handle data in Python, here I have some helper functions for them
+@typechecked
 def dict_count(arg_dict: dict, arg_key) -> dict:
     """ A dict where the value is another dict: count how many different values there are.
     ex: dict_count({"1001": {"name": "Spongebob", "age": 35}, "1002": {"name": "Patrick", "age": 35}, "1003": {"name": "Squidward", "age": 43}}, "age")
@@ -320,12 +347,14 @@ def dict_count(arg_dict: dict, arg_key) -> dict:
                 res[v2] = res.get(v2, 0) + 1
     return res
 
+@typechecked
 def dict_get_key_from_value(arg_dict: dict, arg_value):
     for k, v in arg_dict.items():
         if v == arg_value:
             return k
     return None
 
+@typechecked
 def dict_sort(arg_dict: dict, arg_sort_by_value: bool = False, arg_desc: bool = False) -> dict:
     ''' Returns a new sorted dictionary '''
     res = {}
@@ -344,6 +373,7 @@ def dict_sort(arg_dict: dict, arg_sort_by_value: bool = False, arg_desc: bool = 
 
     return res
 
+@typechecked
 def dict_move_to_start(arg_dict: dict, arg_key) -> dict:
     ''' Returns a new dict with the given key as the first key '''
     res = {}
@@ -352,12 +382,14 @@ def dict_move_to_start(arg_dict: dict, arg_key) -> dict:
         res[k] = v
     return res
 
+@typechecked
 def dict_to_json_string_pretty(arg_dict: Union[dict, list], arg_as_html: bool = False) -> str:
     res = json.dumps(arg_dict, ensure_ascii=False, indent=4, default=str)
     if arg_as_html:
         res = res.replace("\n", "<br/>\n")
     return res
 
+@typechecked
 def dict_dump_to_json_file(arg_dict: Union[dict, list], arg_filename: str) -> bool:
     if isinstance(arg_dict, str) and isinstance(arg_filename, dict): # Sometimes I mix up the order, if I do then just make the code fix it for me
         arg_dict, arg_filename = arg_filename, arg_dict
@@ -370,6 +402,7 @@ def dict_dump_to_json_file(arg_dict: Union[dict, list], arg_filename: str) -> bo
         f.write(data)
     return True
 
+@typechecked
 def dict_load_json_file(arg_filename_or_url: str) -> Union[Dict, None]:
     ''' Takes a filename or URL and parse it as a dict '''
 
@@ -378,17 +411,19 @@ def dict_load_json_file(arg_filename_or_url: str) -> Union[Dict, None]:
         return None
     return json.loads(file_content)
 
+@typechecked
 def dict_list_to_massive_dict(arg_list: List[Any], arg_key) -> Union[Dict, None]:
     ''' Converts a list of dicts --> one massive dict '''
     res = {}
     for item in arg_list:
         if arg_key not in item:
-            error_print(f"Could not find \"{arg_key}\" as key in arg_dict")
+            error_print(f'Could not find "{arg_key}" as key in arg_dict')
             return None
 
         res[str(item[arg_key])] = item # There is a "bug" in Python that JSON keys is always string but Python can have ints as keys: https://stackoverflow.com/a/1451857
     return res
 
+@typechecked
 def dict_add(arg_original: dict, arg_updated: dict, arg_let_original_values_be: bool = False) -> dict:
     ''' First dict is the original, the next arg is the new dict you want to add on top (overwriting keys that already exists)
 
@@ -403,6 +438,7 @@ def dict_add(arg_original: dict, arg_updated: dict, arg_let_original_values_be: 
 
     return res
 
+@typechecked
 def dict_compare(d1: dict, d2: dict) -> dict:
     ''' Determine what the difference beetween d1 and d2. Rule of thought, we are in state d1 and moved to state d2. What has happened? '''
     d1_keys = set(d1.keys())
@@ -414,6 +450,7 @@ def dict_compare(d1: dict, d2: dict) -> dict:
     same = set(o for o in shared_keys if d1[o] == d2[o])
     return {'added': added, 'removed': removed, 'modified': modified, 'same': same}
 
+@typechecked
 def dict_sub(arg_original: dict, arg_updater: dict) -> dict:
     ''' Returns a new dict with the keys that are in arg_updater removed from arg_original '''
     res = {}
@@ -423,12 +460,12 @@ def dict_sub(arg_original: dict, arg_updater: dict) -> dict:
 
     return res
 
+@typechecked
 def dict_intersect(arg_left: dict, arg_right: dict) -> dict:
     return {key: arg_left[key] for key in arg_left if key in arg_right}
 
-# End of dict helpers
-
-def smart_filesystem_safe_path(arg_file_path: Union[str],
+@typechecked
+def smart_filesystem_safe_path(arg_file_path: str,
                                arg_allow_swedish_chars: bool = False,
                                arg_fix_season_and_episodes: bool = True,
                                arg_replacement_char: str = '.') -> str:
@@ -486,6 +523,7 @@ def smart_filesystem_safe_path(arg_file_path: Union[str],
         res = res.replace('..', arg_replacement_char)
     return res
 
+@typechecked
 def regexp_findall_quick_fix(arg_needle: str,
                              arg_haystack: str,
                              arg_default_return_if_not_found: Union[List[str], None] = None
@@ -504,6 +542,7 @@ def regexp_findall_quick_fix(arg_needle: str,
     #                           ("first group of second full match", "second group of second full match")]
     return arg_default_return_if_not_found
 
+@typechecked
 def get_size_as_B_KB_MB_GB(arg_size: Union[float, int], arg_force_unit: bool = False) -> str:
     del arg_force_unit # TODO: arg_force_unit is not implemented yet
     units = ["B", "KB", "MB", "GB", "TB"]
@@ -516,6 +555,7 @@ def get_size_as_B_KB_MB_GB(arg_size: Union[float, int], arg_force_unit: bool = F
 
     return f"{temp:0.2f} {units[-1]}"
 
+@typechecked
 def find_matching_brackets(arg_haystack: str, arg_opening_brackets: str = '{', arg_start_with_counter: int = 0):
     closing_brackets_dict = {'[': ']', '{': '}', '(': ')', '<': '>'}
     closing_brackets = closing_brackets_dict[arg_opening_brackets]
@@ -530,7 +570,8 @@ def find_matching_brackets(arg_haystack: str, arg_opening_brackets: str = '{', a
     # timestamped_print("ERROR! find_matching_brackets() failed to find anything")
     return ""
 
-def get_part_of_json(arg_haystack, arg_start_marker_regexp, arg_opening_brackets = '{', arg_start_with_counter = 0):
+@typechecked
+def get_part_of_json(arg_haystack: str, arg_start_marker_regexp: str, arg_opening_brackets: str = '{', arg_start_with_counter: int = 0) -> str:
     json_result = ""
 
     match = re.search(arg_start_marker_regexp, arg_haystack)
@@ -547,8 +588,9 @@ def get_part_of_json(arg_haystack, arg_start_marker_regexp, arg_opening_brackets
         return json_result
 
     error_print("get_part_of_json() failed to find anything")
-    return False
+    return ""
 
+@typechecked
 def concat_files(arg_folder: str, arg_list_of_files: list, arg_dest_file: str):
     if isinstance(arg_list_of_files, str):
         arg_list_of_files = list_from_str(arg_list_of_files)
@@ -559,12 +601,14 @@ def concat_files(arg_folder: str, arg_list_of_files: list, arg_dest_file: str):
                 f.write(f2.read())
     return True
 
+@typechecked
 def text_write_whole_file(arg_filename: str, arg_text: str) -> bool:
     ''' Opens a text file (as UTF-8 with newline='\\n') and write the argument text to that file and then close the file  '''
     with io.open(arg_filename, mode="w", encoding="utf-8", newline="\n") as fp:
         fp.write(arg_text)
     return True
 
+@typechecked
 def text_read_whole_file(arg_filename_or_url: str) -> Union[str, None]:
     arg_filename_or_url = str(arg_filename_or_url) # This will handle pathlib.Path
     if "http" == arg_filename_or_url[0:4].lower():
@@ -582,10 +626,12 @@ def text_read_whole_file(arg_filename_or_url: str) -> Union[str, None]:
         r = fp.read()
     return r
 
+@typechecked
 def math_nthroot(x: Union[int, float, decimal.Decimal], n: Union[int, float, decimal.Decimal]) -> decimal.Decimal:
     ''' Returns the n:th root of x. Example: x=729, n=3 --> 9 '''
     return decimal.Decimal(pow(decimal.Decimal(x), decimal.Decimal(1)/decimal.Decimal(n)))
 
+@typechecked
 def list_from_str(arg_str: Union[str, List, Set, Tuple, None],
                   arg_re_splitter: str = ' |,|;|:|[+]|[-]|[|]|[\n]|[\r]'
                   ) -> Union[List[str], None]:
@@ -607,6 +653,7 @@ def list_from_str(arg_str: Union[str, List, Set, Tuple, None],
     res = [x for x in res if x]
     return res
 
+@typechecked
 def table_from_html(arg_url: str) -> List[List[str]]:
     from bs4 import BeautifulSoup # Imported here since it's an external lib
 
@@ -627,12 +674,14 @@ def table_from_html(arg_url: str) -> List[List[str]]:
             res.append(row_list)
     return res
 
-def html_unicode_to_entities(arg_text: str) -> str:
-    '''Converts unicode to HTML entities.  For example '&' becomes '&amp;' '''
-    import namedentities # type: ignore
-    return namedentities.hex_entities(arg_text)
+# @typechecked
+# def html_unicode_to_entities(arg_text: str) -> str:
+#     '''Converts unicode to HTML entities.  For example '&' becomes '&amp;' TODO: This seems broken? Deprecate it'''
+#     import namedentities # type: ignore
+#     return namedentities.hex_entities(arg_text)
 
-def file_delete(arg_filename: str) -> bool:
+@typechecked
+def file_delete(arg_filename: Union[str, pathlib.Path]) -> bool:
     ''' If the file exists, then delete it. If it does NOT exist, just return True
 
         Returns True if at the end of this function there is no file name arg_filename.
@@ -643,6 +692,7 @@ def file_delete(arg_filename: str) -> bool:
         os.remove(arg_filename)
     return not os.path.exists(arg_filename)
 
+@typechecked
 def reload(arg_module: Union[str, ModuleType, None] = None):
     ''' During development, this is nice to have '''
 
