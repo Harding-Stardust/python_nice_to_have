@@ -7,7 +7,7 @@ This module contains many helper functions to make some parts of your life easie
 In general I try to have the first word in the function connected to what the function is working on for easier tab completion.
 """
 
-__version__ = 240208_221823
+__version__ = 240219_215412
 __author__ = "Harding"
 __copyright__ = "Copyright 2024"
 __credits__ = ["Many random ppl on the Internet"]
@@ -209,7 +209,7 @@ def download_file(arg_url: str, #pylint: disable=too-many-arguments
 def now_nice_format(arg_filename_safe: bool = False, arg_utc: bool = False) -> str:
     """ Helper function for timestamped_line() """
 
-    dt = datetime.datetime.utcnow() if arg_utc else datetime.datetime.now()
+    dt = datetime.datetime.now(datetime.UTC) if arg_utc else datetime.datetime.now()
     res = time.strftime("%Y-%m-%d %H:%M:%S", datetime.datetime.timetuple(dt))
     if arg_filename_safe:
         return smart_filesystem_safe_path(res)
@@ -239,7 +239,7 @@ def log_print(arg_string: str, #pylint: disable=too-many-arguments
               arg_force_flush: bool = False,
               arg_num_function_away: int = 2
               ) -> None:
-    ''' Used for outputing code trace while development '''
+    ''' Used for outputing code trace while development TODO: replace this with a real logger code? '''
     if arg_actually_log:
         info = _file_and_line_number(arg_num_function_away)
         function_name = info.function
