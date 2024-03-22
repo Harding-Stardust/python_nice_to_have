@@ -7,7 +7,7 @@ This module contains many helper functions to make some parts of your life easie
 In general I try to have the first word in the function connected to what the function is working on for easier tab completion.
 """
 
-__version__ = 240219_215412
+__version__ = 240309_103021
 __author__ = "Harding"
 __copyright__ = "Copyright 2024"
 __credits__ = ["Many random ppl on the Internet"]
@@ -27,6 +27,7 @@ import json
 import glob
 import re
 import decimal
+import random
 from typing import Union, Dict, List, Tuple, Set, TypeVar, Any
 from types import ModuleType
 STRICT_TYPES = True # If you want to have stict type checking: pip install typeguard
@@ -48,7 +49,7 @@ except ImportError:
     use_natsort = False
     print("WARNING: Module natsort not installed, this module is not required but strongly recommended. pip install natsort")
 
-__user_agent__: str = 'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.93 Safari/537.36'
+__user_agent__: str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
 
 @typechecked
 def adv_glob(arg_paths: Union[List[str], str], arg_recursive: bool = False, arg_supress_errors: bool = False, arg_debug: bool = False) -> List[str]:
@@ -153,6 +154,12 @@ def ensure_dir(arg_full_path: str):
         os.makedirs(_dirs)
 
 @typechecked
+def temp_filename(arg_debug: bool = False, arg_extension: str = "tmp") -> str:
+    ''' Returns a temp filename '''
+    l_random_string: str = "".join([random.choice("abcdefghjkmnpqrstuvxyz") for _ in range(5)]) # If we have bad luck and multiple scripts download at the same time
+    return f"0000_{now_nice_format(arg_filename_safe=True)}_{l_random_string}_download.{arg_extension}"
+
+@typechecked
 def download_file(arg_url: str, #pylint: disable=too-many-arguments
                   arg_proxy_string_to_curl: str = "",
                   arg_origin: str = "",
@@ -165,7 +172,7 @@ def download_file(arg_url: str, #pylint: disable=too-many-arguments
     """ Download a file with CURL and look like a normal web browser """
 
     if not arg_local_filename:
-        arg_local_filename = os.path.join(f"0000_{now_nice_format(arg_filename_safe=True)}_download.tmp")
+        arg_local_filename = temp_filename()
 
     if arg_proxy_string_to_curl and not arg_proxy_string_to_curl.startswith("-x "):
         arg_proxy_string_to_curl = "-x " + arg_proxy_string_to_curl
@@ -491,7 +498,7 @@ def smart_filesystem_safe_path(arg_file_path: str,
     res = res.replace("\\", arg_replacement_char)
     res = res.replace("%", arg_replacement_char)
     res = res.replace(":", arg_replacement_char)
-    res = res.replace("_", arg_replacement_char)
+    # res = res.replace("_", arg_replacement_char) # Keep underscore?
     res = res.replace("/", arg_replacement_char)
     res = res.replace("?", arg_replacement_char)
     res = res.replace("-", arg_replacement_char)
@@ -510,7 +517,7 @@ def smart_filesystem_safe_path(arg_file_path: str,
     res = res.replace("–.", arg_replacement_char)
 
     if arg_fix_season_and_episodes:
-        res = re.sub(r'sasong.(\d\d?).avsnitt.(\d\d?)', 'S0\\1E0\\2', res, flags=re.IGNORECASE) # Swedish naming: Säsong-1-avsnitt-1 --> S01E01
+        res = re.sub(r's[aä]song.(\d\d?).avsnitt.(\d\d?)', 'S0\\1E0\\2', res, flags=re.IGNORECASE) # Swedish naming: Säsong-1-avsnitt-1 --> S01E01
         res = re.sub(fr'([{arg_replacement_char}])S0(\d\d)E(\d\d?\d?)', '\\1S\\2E\\3', res, flags=re.IGNORECASE) # Fix Season numbers 'S011' --> 'S11'
         res = re.sub(fr'([{arg_replacement_char}])S(\d\d)E0(\d\d)', '\\1S\\2E\\3', res, flags=re.IGNORECASE) # Fix episode numbers 'E012' --> 'E12'
 
@@ -591,7 +598,7 @@ def get_part_of_json(arg_haystack: str, arg_start_marker_regexp: str, arg_openin
     return ""
 
 @typechecked
-def concat_files(arg_folder: str, arg_list_of_files: list, arg_dest_file: str):
+def concat_files(arg_folder: str, arg_list_of_files: list[str] | str, arg_dest_file: str):
     if isinstance(arg_list_of_files, str):
         arg_list_of_files = list_from_str(arg_list_of_files)
 
@@ -611,7 +618,7 @@ def text_write_whole_file(arg_filename: str, arg_text: str) -> bool:
 @typechecked
 def text_read_whole_file(arg_filename_or_url: str) -> Union[str, None]:
     arg_filename_or_url = str(arg_filename_or_url) # This will handle pathlib.Path
-    if "http" == arg_filename_or_url[0:4].lower():
+    if arg_filename_or_url.lower().startswith("http"):
         _tmp = download_file(arg_filename_or_url)
         res = text_read_whole_file(_tmp)
         os.remove(_tmp)
