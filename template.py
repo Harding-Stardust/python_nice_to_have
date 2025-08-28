@@ -5,44 +5,32 @@
 TODO: What the module is doing
 """
 
-__version__ = 240208_212939
+__version__ = "2024-02-08 21:29:39"
 __author__ = "Harding"
 __description__ = __doc__
-__copyright__ = "Copyright 2024"
+__copyright__ = "Copyright 2025"
 __credits__ = ["Other projects"]
 __license__ = "GPL"
 __maintainer__ = "Harding"
 __email__ = "not.at.the.moment@example.com"
 __status__ = "Development"
 
-STRICT_TYPES = True # If you want to have stict type checking: pip install typeguard
-
 from typing import Union, Any, Dict, List
 import logging # TODO: Change to loguru? https://github.com/Delgan/loguru
 from types import ModuleType
+from pydantic import validate_call
 import harding_utils as hu
-try:
-    if not STRICT_TYPES:
-        raise ImportError("Skipping the import of typeguard reason: STRICT_TYPES == False")
-    from typeguard import typechecked
-except:
-    STRICT_TYPES = False
-    from typing import TypeVar
-    _T = TypeVar("_T")
-
-    def typechecked(target: _T, **kwargs) -> _T: # type: ignore
-        return target if target else typechecked # type: ignore
 
 _g_logger = logging.getLogger(__name__)
 _g_logger.setLevel(logging.DEBUG) # This is the level that is actually used
 _console_handler = logging.StreamHandler()
 _console_handler.setLevel(logging.DEBUG)
-_console_handler.setFormatter(logging.Formatter('[%(asctime)s] [%(levelname)s] %(module)s:%(funcName)s:%(lineno)d - %(message)s'))
+_console_handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(module)s.%(funcName)s:%(lineno)d - %(message)s'))
 if _g_logger.handlers:
     _g_logger.removeHandler(_g_logger.handlers[0]) # When you importlib.reload() a module, we need to clear out the old logger
 _g_logger.addHandler(_console_handler)
 
-@typechecked
+@validate_call(config={"arbitrary_types_allowed": True, "strict": True, "validate_return": True})
 def _reload(arg_module: Union[str, ModuleType, None] = None):
     ''' Internal function. During development, this is nice to have '''
 
@@ -52,7 +40,7 @@ def _reload(arg_module: Union[str, ModuleType, None] = None):
     l_module: str = arg_module if isinstance(arg_module, str) else getattr(arg_module, '__name__', __name__)
     return importlib.reload(sys.modules[l_module])
 
-@typechecked
+@validate_call(config={"arbitrary_types_allowed": True, "strict": True, "validate_return": True})
 def file_work(arg_file: str, arg_update: bool = False) -> str:
     ''' This is all the work done on each file '''
 
@@ -62,7 +50,7 @@ def file_work(arg_file: str, arg_update: bool = False) -> str:
     _g_logger.debug("TODO: Ending work on %s", arg_file)
     return f"{arg_file} is done!"
 
-@typechecked
+@validate_call(config={"arbitrary_types_allowed": True, "strict": True, "validate_return": True})
 def module_work(arg_files: List[str], arg_update: bool = False) -> List[str]:
     ''' This is all the work the module is doing '''
 
@@ -72,7 +60,7 @@ def module_work(arg_files: List[str], arg_update: bool = False) -> List[str]:
         res.append(file_work(file, arg_update))
     return res
 
-@typechecked
+@validate_call(config={"arbitrary_types_allowed": True, "strict": True, "validate_return": True})
 def module_main(arg_argv: Union[Dict[str, Any], None] = None) -> List[str]:
     ''' This function can be used from an interactive prompt such as Ipython or Jupyter '''
 
