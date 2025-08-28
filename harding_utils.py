@@ -28,7 +28,7 @@ import glob
 import re
 import decimal
 import random
-from typing import Union, Dict, List, Tuple, Set, TypeVar, Any
+from typing import Union, Dict, List, Tuple, Set, TypeVar, Any, Optional
 from types import ModuleType
 STRICT_TYPES = True # If you want to have stict type checking: pip install typeguard
 try:
@@ -49,7 +49,7 @@ except ImportError:
     use_natsort = False
     print("WARNING: Module natsort not installed, this module is not required but strongly recommended. pip install natsort")
 
-__user_agent__: str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+__user_agent__: str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
 
 @typechecked
 def adv_glob(arg_paths: Union[List[str], str], arg_recursive: bool = False, arg_supress_errors: bool = False, arg_debug: bool = False) -> List[str]:
@@ -160,6 +160,17 @@ def temp_filename(arg_debug: bool = False, arg_extension: str = "tmp") -> str:
     return f"0000_{now_nice_format(arg_filename_safe=True)}_{l_random_string}_download.{arg_extension}"
 
 @typechecked
+def sanitize_url(arg_url: str, arg_fail_if_not_good: bool = False) -> str | None:
+    """ Given a string from a user, return something that is safe to give to os.system() as URL """
+    from urllib.parse import quote
+    res = quote(arg_url, safe="%/:=&?~#+!$,;'@()*[]")
+    if arg_fail_if_not_good and res != arg_url:
+        error_print(f'URL is not OK! "{arg_url}" != "{res}"')
+        return None
+        
+    return res
+
+@typechecked
 def download_file(arg_url: str, #pylint: disable=too-many-arguments
                   arg_proxy_string_to_curl: str = "",
                   arg_origin: str = "",
@@ -167,9 +178,14 @@ def download_file(arg_url: str, #pylint: disable=too-many-arguments
                   arg_local_filename: Union[str, None] = None,
                   arg_check_remote_filesize: bool = False,
                   arg_max_num_bytes: int = 0,
-                  arg_rate_limit: str = "100M"
+                  arg_rate_limit: str = "100M",
+                  arg_dry_run: bool = False
                   ) -> str:
-    """ Download a file with CURL and look like a normal web browser """
+    """ Download a file with CURL and look like a normal web browser 
+    Will look like:
+    curl --speed-time 60 --speed-limit 500 --retry 20 -e "" -H "Origin: " -H "Sec-Fetch-Site: cross-site" -H "Sec-Fetch-Mode: cors" -H "Sec-Fetch-Dest: empty" -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"   -L   --limit-rate 100M -H "Accept-Language: en-US,en;q=0.9" -o "saved_as" --continue-at - <URL>
+    
+    """
 
     if not arg_local_filename:
         arg_local_filename = temp_filename()
@@ -207,6 +223,8 @@ def download_file(arg_url: str, #pylint: disable=too-many-arguments
     curl_command += ' --continue-at -' # https://curl.se/docs/manpage.html#-C
     curl_command += f' "{arg_url}"'
     timestamped_print("\n\n" + curl_command + "\n\n", arg_force_flush=True)
+    if arg_dry_run:
+        return arg_local_filename
     if 0 == os.system(curl_command):
         return arg_local_filename
     error_print(f'Curl failed to download "{arg_url}"')
@@ -363,7 +381,7 @@ def dict_get_key_from_value(arg_dict: dict, arg_value):
 
 @typechecked
 def dict_sort(arg_dict: dict, arg_sort_by_value: bool = False, arg_desc: bool = False) -> dict:
-    ''' Returns a new sorted dictionary '''
+    ''' Returns a new sorted dictionary sorted on key (use arg_sort_by_value to sort on value) '''
     res = {}
     sort_function = sorted
     if use_natsort:
@@ -533,7 +551,7 @@ def smart_filesystem_safe_path(arg_file_path: str,
 @typechecked
 def regexp_findall_quick_fix(arg_needle: str,
                              arg_haystack: str,
-                             arg_default_return_if_not_found: Union[List[str], None] = None
+                             arg_default_return_if_not_found: Optional[Union[List[str], str]] = None
                              ) -> List[str]:
     ''' # TODO: Write docstring '''
     m = re.findall(arg_needle, arg_haystack)
@@ -548,6 +566,21 @@ def regexp_findall_quick_fix(arg_needle: str,
     #  Return looks like this: [("first group of first full match", "second group of first full match"),
     #                           ("first group of second full match", "second group of second full match")]
     return arg_default_return_if_not_found
+
+@typechecked
+def to_float(arg_in: Union[str, List[str], int, List[int]]) -> float:
+    ''' Convert to float in a smart way. '''
+    res: float = 0
+    if isinstance(arg_in, list):
+        for i in arg_in:
+            res += to_float(i)
+        return res
+    arg_in = str(arg_in)
+    arg_in = arg_in.replace(" ", "") # Swedish thousand separator is ' ' (space)
+    arg_in = arg_in.replace(",", ".") # Swedish  decimal separator is , not . 
+    res = float(arg_in)
+    return res
+
 
 @typechecked
 def get_size_as_B_KB_MB_GB(arg_size: Union[float, int], arg_force_unit: bool = False) -> str:
@@ -565,12 +598,12 @@ def get_size_as_B_KB_MB_GB(arg_size: Union[float, int], arg_force_unit: bool = F
 @typechecked
 def find_matching_brackets(arg_haystack: str, arg_opening_brackets: str = '{', arg_start_with_counter: int = 0):
     closing_brackets_dict = {'[': ']', '{': '}', '(': ')', '<': '>'}
-    closing_brackets = closing_brackets_dict[arg_opening_brackets]
+    closing_bracket = closing_brackets_dict[arg_opening_brackets]
 
     for i in range(0, len(arg_haystack)):
         if arg_haystack[i] == arg_opening_brackets:
             arg_start_with_counter += 1
-        elif arg_haystack[i] == closing_brackets:
+        elif arg_haystack[i] == closing_bracket:
             arg_start_with_counter -= 1
             if 0 == arg_start_with_counter:
                 return arg_haystack[0:i+1]
