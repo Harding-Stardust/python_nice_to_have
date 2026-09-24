@@ -1,15 +1,12 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 """
 This module contains many helper functions to make some parts of your life easier.
 
 In general I try to have the first word in the function connected to what the function is working on for easier tab completion.
 """
 
-__version__ = 240309_103021
+__version__ = "2026-09-05 00:33:07"
 __author__ = "Harding"
-__copyright__ = "Copyright 2024"
+__copyright__ = "Copyright 2026"
 __credits__ = ["Many random ppl on the Internet"]
 __license__ = "GPL"
 __maintainer__ = "Harding"
@@ -28,30 +25,28 @@ import glob
 import re
 import decimal
 import random
-from typing import Union, Dict, List, Tuple, Set, TypeVar, Any, Optional
+import contextlib
+from typing import Union, Dict, List, Tuple, Set, TypeVar, TextIO, Any, Optional, Callable, Iterable, Generator
 from types import ModuleType
-STRICT_TYPES = True # If you want to have stict type checking: pip install typeguard
-try:
-    if not STRICT_TYPES:
-        raise ImportError("Skipping the import of typeguard reason: STRICT_TYPES == False")
-    from typeguard import typechecked
-except:
-    STRICT_TYPES = False
-    _T = TypeVar("_T")
+from pydantic import validate_call
 
-    def typechecked(target: _T, **kwargs) -> _T: # type: ignore
-        return target if target else typechecked # type: ignore
-
-use_natsort = True
+_G_USE_NATSORT = True
 try: # It will function without this sorting
     import natsort
 except ImportError:
-    use_natsort = False
+    _G_USE_NATSORT = False
     print("WARNING: Module natsort not installed, this module is not required but strongly recommended. pip install natsort")
 
-__user_agent__: str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
+try:
+    import peek as _peek
+    _G_PEEK_AVAILABLE: bool = True
+except ImportError:  # peek is an optional dependency, debug() falls through to a no-op below #
+    _G_PEEK_AVAILABLE = False
+    print("WARNING: Module peek-python not installed, this module is not required but strongly recommended. pip install peek-python")
 
-@typechecked
+__user_agent__: str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36"
+
+@validate_call(config={"arbitrary_types_allowed": True, "strict": True, "validate_return": True})
 def adv_glob(arg_paths: Union[List[str], str], arg_recursive: bool = False, arg_supress_errors: bool = False, arg_debug: bool = False) -> List[str]:
     ''' Returns a list of files (with full path) that matches a list of filters.
         Example arg_paths: c:\\a.txt c:\\a\\folder1 folder* folder1 folder2\\ folder1\\* fodler5 non-existant_file.txt folder2 *.log
@@ -66,24 +61,22 @@ def adv_glob(arg_paths: Union[List[str], str], arg_recursive: bool = False, arg_
     arg_paths_list: list
     if isinstance(arg_paths, str):
         arg_paths_list = [arg_paths]
-    elif isinstance(arg_paths, list):
-        arg_paths_list = arg_paths
     else:
-        raise ValueError(f"argument arg_paths is: {type(arg_paths)} and I can only handle str or list")
+        arg_paths_list = arg_paths
 
     # arg_paths_list = arg_paths # TODO: Investigate
     for i in arg_paths_list:
         # file_filters becomes "*.*" if you give them without any filter
         if i.startswith('http'):
-            debug("URL: " + str(i), not arg_debug)
+            # debug("URL: " + str(i), not arg_debug)
             _list_of_urls.append(i)
         elif os.path.isdir(i):
-            debug("Folder: " + str(i), not arg_debug)
+            # debug("Folder: " + str(i), not arg_debug)
             if not os.path.abspath(i) in file_filters:
                 file_filters[os.path.abspath(i)] = set()
             file_filters[os.path.abspath(i)].add("*")
         elif os.path.dirname(os.path.abspath(i)) and os.path.basename(os.path.abspath(i)):
-            debug(f"Split to k = '{os.path.dirname(os.path.abspath(i))}'   v = '{os.path.basename(os.path.abspath(i))}'", not arg_debug)
+            # debug(f"Split to k = '{os.path.dirname(os.path.abspath(i))}'   v = '{os.path.basename(os.path.abspath(i))}'", not arg_debug)
             if not os.path.dirname(os.path.abspath(i)) in file_filters:
                 file_filters[os.path.dirname(os.path.abspath(i))] = set()
             file_filters[os.path.dirname(os.path.abspath(i))].add(os.path.basename(os.path.abspath(i)))
@@ -92,7 +85,7 @@ def adv_glob(arg_paths: Union[List[str], str], arg_recursive: bool = False, arg_
     file_filters_2 = {}
     for k, v in file_filters.items():
         if os.path.isdir(k):
-            debug(f"k: {k}, v: {v}", not arg_debug)
+            # debug(f"k: {k}, v: {v}", not arg_debug)
             file_filters_2[k] = v
         elif k.startswith('http'):
             continue
@@ -100,7 +93,7 @@ def adv_glob(arg_paths: Union[List[str], str], arg_recursive: bool = False, arg_
             warning_print("Could not find folder \"" + k + "\"")
     file_filters = file_filters_2
 
-    debug("File filters = " + str(file_filters), not arg_debug)
+    # debug("File filters = " + str(file_filters), not arg_debug)
 
     # Filters done, now create a file list
     return_list = []
@@ -112,7 +105,7 @@ def adv_glob(arg_paths: Union[List[str], str], arg_recursive: bool = False, arg_
     return_list.extend(_list_of_urls)
     return return_list
 
-@typechecked
+@validate_call(config={"arbitrary_types_allowed": True, "strict": True, "validate_return": True})
 def list_of_files(arg_folder: str,
                   arg_filters: Union[None, str, List, Set, Tuple] = "*",
                   arg_recursive: bool = False,
@@ -123,14 +116,14 @@ def list_of_files(arg_folder: str,
     filters = list_from_str(arg_filters)
     if not filters:
         return res
-    debug("list_of_files() arg_folder = " + arg_folder + ", argfilters = " + str(filters) + "", not arg_debug)
+    # debug("list_of_files() arg_folder = " + arg_folder + ", argfilters = " + str(filters) + "", not arg_debug)
     # Add all files matching the filter. OBS! No folders whatsoever
     for i in filters:
         full_path = os.path.join(arg_folder, i).replace('[', '?').replace(']', '?')
-        debug(full_path, not arg_debug)
+        # debug(full_path, not arg_debug)
         the_glob_list = glob.glob(full_path)
 
-        debug("list_of_files() Globbing " + os.path.join(arg_folder, i) + " = " + str(the_glob_list), not arg_debug)
+        # debug("list_of_files() Globbing " + os.path.join(arg_folder, i) + " = " + str(the_glob_list), not arg_debug)
         for j in the_glob_list:
             if os.path.isfile(j):
                 res.append(j)
@@ -147,30 +140,37 @@ def list_of_files(arg_folder: str,
                 res.extend(list_of_files(os.path.join(arg_folder, i), arg_filters, arg_recursive, arg_supress_errors, arg_debug))
     return res
 
-@typechecked
+@validate_call(config={"arbitrary_types_allowed": True, "strict": True, "validate_return": True})
 def ensure_dir(arg_full_path: str):
-    _dirs = os.path.dirname(arg_full_path)
-    if not os.path.exists(_dirs):
-        os.makedirs(_dirs)
+    l_dirs = os.path.dirname(arg_full_path)
+    if not os.path.exists(l_dirs):
+        os.makedirs(l_dirs)
 
-@typechecked
-def temp_filename(arg_debug: bool = False, arg_extension: str = "tmp") -> str:
+@validate_call(config={"arbitrary_types_allowed": True, "strict": True, "validate_return": True})
+def filename_extension(arg_filename: str) -> str:
+    ''' Returns the extention: "image.jpg" --> "jpg" '''
+    l_end_at = arg_filename.find('?')
+
+    l_filename = arg_filename if l_end_at == -1 else arg_filename[0:l_end_at]
+    return os.path.splitext(l_filename)[1][1:]
+
+@validate_call(config={"arbitrary_types_allowed": True, "strict": True, "validate_return": True})
+def temp_filename(arg_extension: str = "tmp") -> str:
     ''' Returns a temp filename '''
     l_random_string: str = "".join([random.choice("abcdefghjkmnpqrstuvxyz") for _ in range(5)]) # If we have bad luck and multiple scripts download at the same time
     return f"0000_{now_nice_format(arg_filename_safe=True)}_{l_random_string}_download.{arg_extension}"
 
-@typechecked
-def sanitize_url(arg_url: str, arg_fail_if_not_good: bool = False) -> str | None:
+@validate_call(config={"arbitrary_types_allowed": True, "strict": True, "validate_return": True})
+def sanitize_url(arg_url: str, arg_fail_if_not_good: bool = False) -> Optional[str]:
     """ Given a string from a user, return something that is safe to give to os.system() as URL """
     from urllib.parse import quote
     res = quote(arg_url, safe="%/:=&?~#+!$,;'@()*[]")
     if arg_fail_if_not_good and res != arg_url:
         error_print(f'URL is not OK! "{arg_url}" != "{res}"')
         return None
-        
     return res
 
-@typechecked
+@validate_call(config={"arbitrary_types_allowed": True, "strict": True, "validate_return": True})
 def download_file(arg_url: str, #pylint: disable=too-many-arguments
                   arg_proxy_string_to_curl: str = "",
                   arg_origin: str = "",
@@ -217,7 +217,7 @@ def download_file(arg_url: str, #pylint: disable=too-many-arguments
     curl_command += ' -L' # -L is --location --> if we get a HTTP 3XX Location response, we follow that. https://curl.se/docs/manpage.html#-L
     curl_command += f' {head}'
     curl_command += f' {_range}'
-    curl_command += f' --limit-rate {arg_rate_limit}' # https://everything.curl.dev/usingcurl/transfers/rate-limiting    The rate limit value can be given with a letter suffix using one of K, M and G for kilobytes, megabytes and gigabytes.
+    curl_command += f' --limit-rate {arg_rate_limit}' # https://everything.curl.dev/usingcurl/transfers/rate-limiting.html    The rate limit value can be given with a letter suffix using one of K, M and G for kilobytes, megabytes and gigabytes.
     curl_command += ' -H "Accept-Language: en-US,en;q=0.9"'
     curl_command += f' -o "{arg_local_filename}"'
     curl_command += ' --continue-at -' # https://curl.se/docs/manpage.html#-C
@@ -230,7 +230,7 @@ def download_file(arg_url: str, #pylint: disable=too-many-arguments
     error_print(f'Curl failed to download "{arg_url}"')
     return "ERROR: CURL FAILED!" # TODO: return None?
 
-@typechecked
+@validate_call(config={"arbitrary_types_allowed": True, "strict": True, "validate_return": True})
 def now_nice_format(arg_filename_safe: bool = False, arg_utc: bool = False) -> str:
     """ Helper function for timestamped_line() """
 
@@ -240,15 +240,15 @@ def now_nice_format(arg_filename_safe: bool = False, arg_utc: bool = False) -> s
         return smart_filesystem_safe_path(res)
     return res
 
-@typechecked
+@validate_call(config={"arbitrary_types_allowed": True, "strict": True, "validate_return": True})
 def timestamped_line(arg_str: str = "") -> str:
     return f"[{now_nice_format()}] {arg_str}"
 
-@typechecked
+@validate_call(config={"arbitrary_types_allowed": True, "strict": True, "validate_return": True})
 def timestamped_print(arg_str: str = "", arg_file = sys.stdout, arg_force_flush: bool = False):
-    print(timestamped_line(arg_str), file=arg_file, flush=arg_force_flush)
+    print(timestamped_line(arg_str), file=arg_file, flush=arg_force_flush) # TODO: Rewrite this to use a real logger
 
-@typechecked
+@validate_call(config={"arbitrary_types_allowed": True, "strict": True, "validate_return": True})
 def _file_and_line_number(arg_num_function_away: int = 2) -> _inspect.Traceback:
     ''' Internal function. Used in log_print() '''
     callerframerecord = _inspect.stack()[arg_num_function_away]      # 0 represents this line
@@ -256,75 +256,139 @@ def _file_and_line_number(arg_num_function_away: int = 2) -> _inspect.Traceback:
     info = _inspect.getframeinfo(frame)                              # info.filename, info.function, info.lineno
     return info
 
-@typechecked
+@validate_call(config={"arbitrary_types_allowed": True, "strict": True, "validate_return": True})
 def log_print(arg_string: str, #pylint: disable=too-many-arguments
               arg_actually_log: bool = True,
               arg_type: str = "DEBUG",
               arg_file = sys.stdout,
               arg_force_flush: bool = False,
-              arg_num_function_away: int = 2
+              arg_num_function_away: int = 6
               ) -> None:
     ''' Used for outputing code trace while development TODO: replace this with a real logger code? '''
-    if arg_actually_log:
-        info = _file_and_line_number(arg_num_function_away)
-        function_name = info.function
-        if function_name == "<module>":
-            function_name = os.path.basename(info.filename)
-        else:
-            function_name = f"{os.path.splitext(os.path.basename(info.filename))[0]}.{function_name}"
-        log_line = f"{arg_type}: {function_name}:{info.lineno} --> {arg_string}"
+    if not arg_actually_log: return
+    info = _file_and_line_number(arg_num_function_away) # TODO: This is very slow, rewrite this to use a real logger code?
+    function_name = info.function
+    if function_name == "<module>":
+        function_name = os.path.basename(info.filename)
+    else:
+        function_name = f"{os.path.splitext(os.path.basename(info.filename))[0]}.{function_name}"
+    log_line = f"{arg_type}: {function_name}:{info.lineno} --> {arg_string}"
 
-        timestamped_print(arg_str=log_line, arg_file=arg_file, arg_force_flush=arg_force_flush)
+    timestamped_print(arg_str=log_line, arg_file=arg_file, arg_force_flush=arg_force_flush)
 
-_ExpType = TypeVar('_ExpType')
-@typechecked
-def debug(arg_exp: _ExpType, arg_supress_output: bool = False, arg_out_handle = sys.stderr) -> _ExpType:
-    ''' Modded version of pydbg. TODO: Maybe replace this with iceream? https://github.com/gruns/icecream    pip install icecream '''
-    if arg_supress_output:
+
+
+
+G_DEFAULT_PREFIX: str = 'DEBUG: '
+class _NullDebug:
+    """
+    Fallback used when peek is not installed, so callers don't need peek as a
+    hard dependency. Matches the subset of the peek API this project uses. #
+    """
+    def __call__(self, *arg_exp: object, **arg_kwargs: object) -> object:
+        if len(arg_exp) == 1:
+            return arg_exp[0]
         return arg_exp
 
-    for frame in _inspect.stack():
-        if not frame.code_context:
-            break
-        line = frame.code_context[0]
-        start = line.find('debug(') + 1
+    def timer(self, arg_func_or_none: object = None, **arg_kwargs: object) -> object:
+        if callable(arg_func_or_none): # used as a bare decorator: @debug.timer #
+            return arg_func_or_none
+        return self._timer_context() # used as @debug.timer(...) or with debug.timer(...): #
 
-        if start:
-            exp_str = find_matching_brackets(line[start - 1:], arg_opening_brackets='(')
-            if exp_str:
-                exp_str = exp_str[6:-1] # Strip  the 'debug(' and the trailing ')'
+    @contextlib.contextmanager
+    def _timer_context(self) -> Generator[None, None, None]:
+        yield
 
-            # Remove the arguments to this function (if there are any)
-            all_parts = exp_str.split(',')
-            if 1 == len(all_parts):
-                exp_res = all_parts[0]
-            else:
-                if all_parts:
-                    exp_res = ""
-                    for part in all_parts:
-                        exp_res += part + ','
-                        if find_matching_brackets(exp_res[:-1], arg_opening_brackets='('):
-                            exp_res = exp_res[:-1]
-                            break
+if _G_PEEK_AVAILABLE:
+    # debug is a preconfigured peek instance, not a wrapper function around peek().
+    # peek always inspects its own direct caller frame to resolve the source
+    # expression being printed (e.g. "l_val=42"), and it has no public hook to skip
+    # an extra wrapper frame (unlike icecream's ic._format(frame, expr), which let
+    # the old implementation pass the caller's frame explicitly). Wrapping peek()
+    # in a debug(arg_exp) function would make every message resolve to "arg_exp=..."
+    # instead of the real variable name, so debug is exposed as a forked peek
+    # instance and called directly at each call site instead. #
+    debug = _peek.peek.fork(
+        prefix=G_DEFAULT_PREFIX,
+        show_line_number=True,
+        output=lambda arg_line: timestamped_print(arg_line, arg_file=sys.stderr),
+    )
+else:
+    debug = _NullDebug()
 
-            exp_res = exp_res.strip()
+# Usage:
+#
+# debug(l_val)
+#   -> prints "[HH:MM:SS] DEBUG: #<line> in <func>() ==> l_val=<value>"
+#   -> returns l_val unchanged, so it can be inserted inline: l_val = debug(compute())
+#
+# debug(l_val, enabled=False)
+#   -> suppresses this single call's output (per-call override of arg_supress_output)
+#
+# debug(l_val, output=lambda arg_line: timestamped_print(arg_line, arg_out_handle=sys.stdout))
+#   -> redirects this single call's output (per-call override of arg_out_handle)
+#
+# with debug.timer(show_line_number=True):
+#     do_something_slow()
+#   -> times the wrapped block and prints "enter" / "exit in <seconds> seconds"
+#
+# @debug.timer
+# def some_func(...): ...
+#   -> times every call to some_func, printing entry/exit and the return value
 
-            # import ast
-            # a = ast.parse(exp_res)
-            # b = ast.dump(a)
-            # print(b, file=arg_out_handle)
+# Old code:
 
-            timestamped_print(
-                f"DEBUG: {frame.filename}:{frame.lineno}: {exp_res} --> {arg_exp!r}",
-                arg_file=arg_out_handle,
-            )
-            break
+# _ExpType = TypeVar('_ExpType')
+# @validate_call(config={"arbitrary_types_allowed": True, "strict": True, "validate_return": True})
+# def debug(arg_exp: _ExpType, arg_supress_output: bool = False, arg_out_handle = sys.stderr) -> _ExpType:
+    # ''' Modded version of pydbg. TODO: Maybe replace this with iceream? https://github.com/gruns/icecream    pip install icecream '''
+    # if arg_supress_output:
+        # return arg_exp
 
-    return arg_exp
+    # for frame in _inspect.stack():
+        # if not frame.code_context:
+            # break
+        # line = frame.code_context[0]
+        # start = line.find('debug(') + 1
 
-@typechecked
+        # if start:
+            # exp_str = find_matching_brackets(line[start - 1:], arg_opening_brackets='(')
+            # if exp_str:
+                # exp_str = exp_str[6:-1] # Strip  the 'debug(' and the trailing ')'
+
+            # # Remove the arguments to this function (if there are any)
+            # all_parts = exp_str.split(',')
+            # if 1 == len(all_parts):
+                # exp_res = all_parts[0]
+            # else:
+                # if all_parts:
+                    # exp_res = ""
+                    # for part in all_parts:
+                        # exp_res += part + ','
+                        # if find_matching_brackets(exp_res[:-1], arg_opening_brackets='('):
+                            # exp_res = exp_res[:-1]
+                            # break
+
+            # exp_res = exp_res.strip()
+
+            # # import ast
+            # # a = ast.parse(exp_res)
+            # # b = ast.dump(a)
+            # # print(b, file=arg_out_handle)
+
+            # timestamped_print(
+                # f"DEBUG: {frame.filename}:{frame.lineno}: {exp_res} --> {arg_exp!r}",
+                # arg_file=arg_out_handle,
+            # )
+            # break
+
+    # return arg_exp
+
+@validate_call(config={"arbitrary_types_allowed": True, "strict": True, "validate_return": True})
 def console_color(arg_string: str, arg_color: str = "OKGREEN") -> str:
     ''' Returns a new string with console marker at the start and at the end '''
+    
+    # TODO: These are in colorize.py?
     l_console_color = {}
     l_console_color["HEADER"] = '\033[95m'
     l_console_color["OKBLUE"] = '\033[94m'
@@ -346,20 +410,27 @@ def console_color(arg_string: str, arg_color: str = "OKGREEN") -> str:
 
     return f'{l_console_color[arg_color]}{arg_string}{l_console_color["ENDC"]}'
 
-@typechecked
-def warning_print(arg_string: str):
-    log_print(arg_type="WARNING", arg_string=console_color(arg_string, arg_color="WARNING"), arg_num_function_away=3)
+@validate_call(config={"arbitrary_types_allowed": True, "strict": True, "validate_return": True})
+def debug_print(arg_string: str, arg_num_function_away: int = 3):
+    log_print(arg_type="DEBUG", arg_string=console_color(arg_string, arg_color="WHITE"), arg_num_function_away=arg_num_function_away+6)
 
-@typechecked
-def error_print(arg_string: str):
-    log_print(arg_type="ERROR", arg_string=console_color(arg_string, arg_color="FAIL"), arg_num_function_away=3)
+@validate_call(config={"arbitrary_types_allowed": True, "strict": True, "validate_return": True})
+def info_print(arg_string: str, arg_num_function_away: int = 3):
+    log_print(arg_type="INFO", arg_string=console_color(arg_string, arg_color="WHITE"), arg_num_function_away=arg_num_function_away+6)
 
-@typechecked
-def success_print(arg_string: str):
-    log_print(arg_type="SUCCESS", arg_string=console_color(arg_string, arg_color="HEADER"), arg_num_function_away=3)
-    # timestamped_print(console_color(f"SUCCESS {arg_string}", "HEADER"))
+@validate_call(config={"arbitrary_types_allowed": True, "strict": True, "validate_return": True})
+def warning_print(arg_string: str, arg_num_function_away: int = 3):
+    log_print(arg_type="WARNING", arg_string=console_color(arg_string, arg_color="WARNING"), arg_num_function_away=arg_num_function_away+6)
 
-@typechecked
+@validate_call(config={"arbitrary_types_allowed": True, "strict": True, "validate_return": True})
+def error_print(arg_string: str, arg_num_function_away: int = 3):
+    log_print(arg_type="ERROR", arg_string=console_color(arg_string, arg_color="FAIL"), arg_num_function_away=arg_num_function_away+6)
+
+@validate_call(config={"arbitrary_types_allowed": True, "strict": True, "validate_return": True})
+def success_print(arg_string: str, arg_num_function_away: int = 3):
+    log_print(arg_type="SUCCESS", arg_string=console_color(arg_string, arg_color="HEADER"), arg_num_function_away=arg_num_function_away+6)
+
+@validate_call(config={"arbitrary_types_allowed": True, "strict": True, "validate_return": True})
 def dict_count(arg_dict: dict, arg_key) -> dict:
     """ A dict where the value is another dict: count how many different values there are.
     ex: dict_count({"1001": {"name": "Spongebob", "age": 35}, "1002": {"name": "Patrick", "age": 35}, "1003": {"name": "Squidward", "age": 43}}, "age")
@@ -372,25 +443,25 @@ def dict_count(arg_dict: dict, arg_key) -> dict:
                 res[v2] = res.get(v2, 0) + 1
     return res
 
-@typechecked
+@validate_call(config={"arbitrary_types_allowed": True, "strict": True, "validate_return": True})
 def dict_get_key_from_value(arg_dict: dict, arg_value):
     for k, v in arg_dict.items():
         if v == arg_value:
             return k
     return None
 
-@typechecked
+@validate_call(config={"arbitrary_types_allowed": True, "strict": True, "validate_return": True})
 def dict_sort(arg_dict: dict, arg_sort_by_value: bool = False, arg_desc: bool = False) -> dict:
     ''' Returns a new sorted dictionary sorted on key (use arg_sort_by_value to sort on value) '''
     res = {}
-    sort_function = sorted
-    if use_natsort:
-        sort_function = natsort.natsorted
+
+    l_sort_function = natsort.natsorted if _G_USE_NATSORT else sorted
     if arg_sort_by_value:
-        res = dict(sort_function(arg_dict.items(), key=lambda item: item[1])) # Sort by value ( lower -> higher )
+        res = dict(l_sort_function(arg_dict.items(), key=lambda item: item[1])) # Sort by value ( lower -> higher )
     else:
-        _list = sort_function(arg_dict.items())
-        for _t in _list:
+        l_list = l_sort_function(arg_dict.items())
+
+        for _t in l_list:
             res[_t[0]] = _t[1]
 
     if arg_desc:
@@ -398,7 +469,7 @@ def dict_sort(arg_dict: dict, arg_sort_by_value: bool = False, arg_desc: bool = 
 
     return res
 
-@typechecked
+@validate_call(config={"arbitrary_types_allowed": True, "strict": True, "validate_return": True})
 def dict_move_to_start(arg_dict: dict, arg_key) -> dict:
     ''' Returns a new dict with the given key as the first key '''
     res = {}
@@ -407,27 +478,21 @@ def dict_move_to_start(arg_dict: dict, arg_key) -> dict:
         res[k] = v
     return res
 
-@typechecked
+@validate_call(config={"arbitrary_types_allowed": True, "strict": True, "validate_return": True})
 def dict_to_json_string_pretty(arg_dict: Union[dict, list], arg_as_html: bool = False) -> str:
     res = json.dumps(arg_dict, ensure_ascii=False, indent=4, default=str)
     if arg_as_html:
         res = res.replace("\n", "<br/>\n")
     return res
 
-@typechecked
+@validate_call(config={"arbitrary_types_allowed": True, "strict": True, "validate_return": True})
 def dict_dump_to_json_file(arg_dict: Union[dict, list], arg_filename: str) -> bool:
-    if isinstance(arg_dict, str) and isinstance(arg_filename, dict): # Sometimes I mix up the order, if I do then just make the code fix it for me
-        arg_dict, arg_filename = arg_filename, arg_dict
-
-    if not (isinstance(arg_dict, (dict, list))) or not isinstance(arg_filename, str):
-        raise ValueError(f'Invalid arguments. arg_dict is of type: {type(arg_dict)} and arg_filename is of type: {type(arg_filename)}')
-
     data = dict_to_json_string_pretty(arg_dict)
     with io.open(arg_filename, "w", encoding="utf-8", newline="\n") as f:
         f.write(data)
     return True
 
-@typechecked
+@validate_call(config={"arbitrary_types_allowed": True, "strict": True, "validate_return": True})
 def dict_load_json_file(arg_filename_or_url: str) -> Union[Dict, None]:
     ''' Takes a filename or URL and parse it as a dict '''
 
@@ -436,7 +501,7 @@ def dict_load_json_file(arg_filename_or_url: str) -> Union[Dict, None]:
         return None
     return json.loads(file_content)
 
-@typechecked
+@validate_call(config={"arbitrary_types_allowed": True, "strict": True, "validate_return": True})
 def dict_list_to_massive_dict(arg_list: List[Any], arg_key) -> Union[Dict, None]:
     ''' Converts a list of dicts --> one massive dict '''
     res = {}
@@ -448,7 +513,7 @@ def dict_list_to_massive_dict(arg_list: List[Any], arg_key) -> Union[Dict, None]
         res[str(item[arg_key])] = item # There is a "bug" in Python that JSON keys is always string but Python can have ints as keys: https://stackoverflow.com/a/1451857
     return res
 
-@typechecked
+@validate_call(config={"arbitrary_types_allowed": True, "strict": True, "validate_return": True})
 def dict_add(arg_original: dict, arg_updated: dict, arg_let_original_values_be: bool = False) -> dict:
     ''' First dict is the original, the next arg is the new dict you want to add on top (overwriting keys that already exists)
 
@@ -463,7 +528,7 @@ def dict_add(arg_original: dict, arg_updated: dict, arg_let_original_values_be: 
 
     return res
 
-@typechecked
+@validate_call(config={"arbitrary_types_allowed": True, "strict": True, "validate_return": True})
 def dict_compare(d1: dict, d2: dict) -> dict:
     ''' Determine what the difference beetween d1 and d2. Rule of thought, we are in state d1 and moved to state d2. What has happened? '''
     d1_keys = set(d1.keys())
@@ -475,7 +540,7 @@ def dict_compare(d1: dict, d2: dict) -> dict:
     same = set(o for o in shared_keys if d1[o] == d2[o])
     return {'added': added, 'removed': removed, 'modified': modified, 'same': same}
 
-@typechecked
+@validate_call(config={"arbitrary_types_allowed": True, "strict": True, "validate_return": True})
 def dict_sub(arg_original: dict, arg_updater: dict) -> dict:
     ''' Returns a new dict with the keys that are in arg_updater removed from arg_original '''
     res = {}
@@ -485,23 +550,26 @@ def dict_sub(arg_original: dict, arg_updater: dict) -> dict:
 
     return res
 
-@typechecked
+@validate_call(config={"arbitrary_types_allowed": True, "strict": True, "validate_return": True})
 def dict_intersect(arg_left: dict, arg_right: dict) -> dict:
     return {key: arg_left[key] for key in arg_left if key in arg_right}
 
-@typechecked
-def smart_filesystem_safe_path(arg_file_path: str,
+@validate_call(config={"arbitrary_types_allowed": True, "strict": True, "validate_return": True})
+def smart_filesystem_safe_path(arg_file_path: Union[str, pathlib.Path],
                                arg_allow_swedish_chars: bool = False,
                                arg_fix_season_and_episodes: bool = True,
                                arg_replacement_char: str = '.') -> str:
     ''' Make a long and weird string into something that the OS likes more to handle '''
     res = str(arg_file_path)
+    res = res.replace('/', os.path.sep)
+    if len(res) < 2:
+        warning_print(f"Filename is very short: {res}")
 
     l_dir = ''
-    if arg_file_path[1] == ':' and arg_file_path[2] == '\\': # Full path: C:\dir\file.txt
-        arg_file_path = arg_file_path[0].upper() + arg_file_path[1:] # I like when the drive letter is uppercase
-        l_dir = os.path.dirname(arg_file_path)
-        res = os.path.basename(arg_file_path)
+    if len(res) > 3 and  res[1] == ':' and res[2] == '\\': # Full path: C:\dir\file.txt
+            res = res[0].upper() + res[1:] # I like when the drive letter is uppercase
+            l_dir = os.path.dirname(res)
+            res = os.path.basename(res)
 
     if not arg_allow_swedish_chars:
         res = res.replace("å", "a")
@@ -517,19 +585,27 @@ def smart_filesystem_safe_path(arg_file_path: str,
     res = res.replace("%", arg_replacement_char)
     res = res.replace(":", arg_replacement_char)
     # res = res.replace("_", arg_replacement_char) # Keep underscore?
-    res = res.replace("/", arg_replacement_char)
+    if os.path.sep != '/':
+        res = res.replace("/", arg_replacement_char) # This will be strange on Linux paths
     res = res.replace("?", arg_replacement_char)
-    res = res.replace("-", arg_replacement_char)
+    # res = res.replace("-", arg_replacement_char)
     res = res.replace("#", arg_replacement_char)
     res = res.replace("*", arg_replacement_char)
     res = res.replace(" ", arg_replacement_char)
     res = res.replace("｜", "") # special char that yt-dlp generate
+    res = res.replace("’", "") # special char that yt-dlp generate
+    res = res.replace("|", arg_replacement_char) # normal pipe sign
     res = res.replace("：", "") # special char that yt-dlp generate
     res = res.replace("？", "") # special char that yt-dlp generate
+    res = res.replace("⧸", "") # special char that yt-dlp generate
+    res = res.replace("＂", "") # special char that yt-dlp generate
+    res = res.replace("—", "") # special char that yt-dlp generate
     res = res.replace('"', "")
     res = res.replace("'", "")
     res = res.replace("[", arg_replacement_char)
     res = res.replace("]", arg_replacement_char)
+    res = res.replace("{", arg_replacement_char)
+    res = res.replace("}", arg_replacement_char)
     res = res.replace("\t", "")
     res = res.replace(".–", arg_replacement_char)
     res = res.replace("–.", arg_replacement_char)
@@ -544,14 +620,18 @@ def smart_filesystem_safe_path(arg_file_path: str,
         res = res.replace('__', arg_replacement_char)
     while res != res.replace('  ', arg_replacement_char):
         res = res.replace('  ', arg_replacement_char)
+    while res != res.replace('--', arg_replacement_char):
+        res = res.replace('--', arg_replacement_char)
     while res != res.replace('..', arg_replacement_char):
         res = res.replace('..', arg_replacement_char)
+
+    res = res.replace("con.", "con_") # CON is a reserved word
     return res
 
-@typechecked
+@validate_call(config={"arbitrary_types_allowed": True, "strict": True, "validate_return": True})
 def regexp_findall_quick_fix(arg_needle: str,
                              arg_haystack: str,
-                             arg_default_return_if_not_found: Optional[Union[List[str], str]] = None
+                             arg_default_return_if_not_found: Union[List[str], str, None] = None
                              ) -> List[str]:
     ''' # TODO: Write docstring '''
     m = re.findall(arg_needle, arg_haystack)
@@ -567,7 +647,7 @@ def regexp_findall_quick_fix(arg_needle: str,
     #                           ("first group of second full match", "second group of second full match")]
     return arg_default_return_if_not_found
 
-@typechecked
+@validate_call(config={"arbitrary_types_allowed": True, "strict": True, "validate_return": True})
 def to_float(arg_in: Union[str, List[str], int, List[int]]) -> float:
     ''' Convert to float in a smart way. '''
     res: float = 0
@@ -581,8 +661,7 @@ def to_float(arg_in: Union[str, List[str], int, List[int]]) -> float:
     res = float(arg_in)
     return res
 
-
-@typechecked
+@validate_call(config={"arbitrary_types_allowed": True, "strict": True, "validate_return": True})
 def get_size_as_B_KB_MB_GB(arg_size: Union[float, int], arg_force_unit: bool = False) -> str:
     del arg_force_unit # TODO: arg_force_unit is not implemented yet
     units = ["B", "KB", "MB", "GB", "TB"]
@@ -595,7 +674,7 @@ def get_size_as_B_KB_MB_GB(arg_size: Union[float, int], arg_force_unit: bool = F
 
     return f"{temp:0.2f} {units[-1]}"
 
-@typechecked
+@validate_call(config={"arbitrary_types_allowed": True, "strict": True, "validate_return": True})
 def find_matching_brackets(arg_haystack: str, arg_opening_brackets: str = '{', arg_start_with_counter: int = 0):
     closing_brackets_dict = {'[': ']', '{': '}', '(': ')', '<': '>'}
     closing_bracket = closing_brackets_dict[arg_opening_brackets]
@@ -610,7 +689,7 @@ def find_matching_brackets(arg_haystack: str, arg_opening_brackets: str = '{', a
     # timestamped_print("ERROR! find_matching_brackets() failed to find anything")
     return ""
 
-@typechecked
+@validate_call(config={"arbitrary_types_allowed": True, "strict": True, "validate_return": True})
 def get_part_of_json(arg_haystack: str, arg_start_marker_regexp: str, arg_opening_brackets: str = '{', arg_start_with_counter: int = 0) -> str:
     json_result = ""
 
@@ -630,8 +709,8 @@ def get_part_of_json(arg_haystack: str, arg_start_marker_regexp: str, arg_openin
     error_print("get_part_of_json() failed to find anything")
     return ""
 
-@typechecked
-def concat_files(arg_folder: str, arg_list_of_files: list[str] | str, arg_dest_file: str):
+@validate_call(config={"arbitrary_types_allowed": True, "strict": True, "validate_return": True})
+def concat_files(arg_folder: str, arg_list_of_files: Union[List[str], str], arg_dest_file: str):
     if isinstance(arg_list_of_files, str):
         arg_list_of_files = list_from_str(arg_list_of_files)
 
@@ -641,15 +720,15 @@ def concat_files(arg_folder: str, arg_list_of_files: list[str] | str, arg_dest_f
                 f.write(f2.read())
     return True
 
-@typechecked
+@validate_call(config={"arbitrary_types_allowed": True, "strict": True, "validate_return": True})
 def text_write_whole_file(arg_filename: str, arg_text: str) -> bool:
     ''' Opens a text file (as UTF-8 with newline='\\n') and write the argument text to that file and then close the file  '''
     with io.open(arg_filename, mode="w", encoding="utf-8", newline="\n") as fp:
         fp.write(arg_text)
     return True
 
-@typechecked
-def text_read_whole_file(arg_filename_or_url: str) -> Union[str, None]:
+@validate_call(config={"arbitrary_types_allowed": True, "strict": True, "validate_return": True})
+def text_read_whole_file(arg_filename_or_url: Union[str, pathlib.Path]) -> Optional[str]:
     arg_filename_or_url = str(arg_filename_or_url) # This will handle pathlib.Path
     if arg_filename_or_url.lower().startswith("http"):
         _tmp = download_file(arg_filename_or_url)
@@ -666,17 +745,16 @@ def text_read_whole_file(arg_filename_or_url: str) -> Union[str, None]:
         r = fp.read()
     return r
 
-@typechecked
+@validate_call(config={"arbitrary_types_allowed": True, "strict": True, "validate_return": True})
 def math_nthroot(x: Union[int, float, decimal.Decimal], n: Union[int, float, decimal.Decimal]) -> decimal.Decimal:
     ''' Returns the n:th root of x. Example: x=729, n=3 --> 9 '''
     return decimal.Decimal(pow(decimal.Decimal(x), decimal.Decimal(1)/decimal.Decimal(n)))
 
-@typechecked
+@validate_call(config={"arbitrary_types_allowed": True, "strict": True, "validate_return": True})
 def list_from_str(arg_str: Union[str, List, Set, Tuple, None],
                   arg_re_splitter: str = ' |,|;|:|[+]|[-]|[|]|[\n]|[\r]'
-                  ) -> Union[List[str], None]:
-    ''' Take a str and try to convert into a list of str in a smart way.
-    Returns None if something breaks. '''
+                  ) -> List[str]:
+    ''' Take a str and try to convert into a list of str in a smart way '''
 
     if arg_str is None:
         return []
@@ -686,16 +764,13 @@ def list_from_str(arg_str: Union[str, List, Set, Tuple, None],
         res = list(arg_str)
     elif isinstance(arg_str, str):
         res = re.split(arg_re_splitter, arg_str)
-    else:
-        print(f"ERROR! arg_str is of type: {type(arg_str)} which I cannot handle!")
-        return None
 
-    res = [x for x in res if x]
-    return res
+    return [x for x in res if x]
 
-@typechecked
+@validate_call(config={"arbitrary_types_allowed": True, "strict": True, "validate_return": True})
 def table_from_html(arg_url: str) -> List[List[str]]:
     from bs4 import BeautifulSoup # Imported here since it's an external lib
+    # TODO: Replace with justhtml 
 
     res: List[List[str]] = []
     page = text_read_whole_file(arg_url)
@@ -714,13 +789,13 @@ def table_from_html(arg_url: str) -> List[List[str]]:
             res.append(row_list)
     return res
 
-# @typechecked
-# def html_unicode_to_entities(arg_text: str) -> str:
-#     '''Converts unicode to HTML entities.  For example '&' becomes '&amp;' TODO: This seems broken? Deprecate it'''
-#     import namedentities # type: ignore
-#     return namedentities.hex_entities(arg_text)
+@validate_call(config={"arbitrary_types_allowed": True, "strict": True, "validate_return": True})
+def html_unicode_to_entities(arg_text: str) -> str:
+    '''Converts unicode to HTML entities.  For example '&' becomes '&amp;' TODO: This seems broken? Deprecate it'''
+    import namedentities # type: ignore
+    return namedentities.hex_entities(arg_text)
 
-@typechecked
+@validate_call(config={"arbitrary_types_allowed": True, "strict": True, "validate_return": True})
 def file_delete(arg_filename: Union[str, pathlib.Path]) -> bool:
     ''' If the file exists, then delete it. If it does NOT exist, just return True
 
@@ -732,7 +807,15 @@ def file_delete(arg_filename: Union[str, pathlib.Path]) -> bool:
         os.remove(arg_filename)
     return not os.path.exists(arg_filename)
 
-@typechecked
+@validate_call(config={"arbitrary_types_allowed": True, "strict": True, "validate_return": True})
+def zapper(arg_string: str, arg_character_to_zap: str = ' ') -> str:
+    ''' Removed multiple chars in a row and only saves 1 '''
+    res = arg_string
+    while (res.replace(arg_character_to_zap + arg_character_to_zap, arg_character_to_zap) != res):
+        res = res.replace(arg_character_to_zap + arg_character_to_zap, arg_character_to_zap)
+    return res
+
+@validate_call(config={"arbitrary_types_allowed": True, "strict": True, "validate_return": True})
 def reload(arg_module: Union[str, ModuleType, None] = None):
     ''' During development, this is nice to have '''
 

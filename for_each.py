@@ -5,10 +5,10 @@
 Run a OS command on many files. Can also show progress in external file.
 """
 
-__version__ = 230313002152
+__version__ = "2025-11-23 16:48:01"
 __author__ = "Harding"
 __description__ = __doc__
-__copyright__ = "Copyright 2023"
+__copyright__ = "Copyright 2025"
 __credits__ = ["Other projects"]
 __license__ = "GPL"
 __maintainer__ = "Harding"
@@ -22,18 +22,19 @@ except ImportError:
     use_natsort = False
     print("WARNING: Module natsort not installed, this module is not required but strongly recommended. pip install natsort")
 
+from typing import Optional, Union, Tuple
 import os
 import time
 import subprocess
-import harding_utils as hu
+import harding_utils as _harding_utils
 
-def do_exec(command: str, arg_file: str, arg_index: int, number_of_files: int, started: float, print_progress_to_file: bool = None):
+def do_exec(command: str, arg_file: str, arg_index: int, number_of_files: int, started: float, print_progress_to_file: Optional[str] = None):
     if print_progress_to_file:
         percent_done = arg_index / number_of_files
         time_elapsed = time.time() - started
-        estimated_total_time = time_elapsed / percent_done
+        estimated_total_time = time_elapsed / percent_done # TODO: percent_done can be 0 ? O_o
         with open(print_progress_to_file, "w", encoding='utf8', newline='\n') as fdesc: # TODO: This might be buggy, verify
-            hu.log_print(f"File {arg_index} / {number_of_files} ({percent_done * 100:.3f}%) estimated {(estimated_total_time - time_elapsed + 1)/60:0.0f}m left. Have been running for {time_elapsed:0.0f} seconds. Current file: \"{arg_file}\"",
+            _harding_utils.log_print(f"File {arg_index} / {number_of_files} ({percent_done * 100:.3f}%) estimated {(estimated_total_time - time_elapsed + 1)/60:0.0f}m left. Have been running for {time_elapsed:0.0f} seconds. Current file: \"{arg_file}\"",
                 arg_type="PROGRESS",
                 arg_file=fdesc,
                 arg_force_flush=True)
@@ -58,7 +59,7 @@ if __name__ == '__main__':
     if "-" == args.file[0]:
         files.append("-")
     else:
-        files = hu.adv_glob(args.file, args.check_subfolders)
+        files = _harding_utils.adv_glob(args.file, args.check_subfolders)
 
     start_time = time.time()
 
@@ -82,3 +83,4 @@ if __name__ == '__main__':
                 do_exec(args.command.strip(), line, index, len(files), start_time, args.progress_file)
         else:
             do_exec(args.command.strip(), file, index, len(files), start_time, args.progress_file)
+    # hu.log_print("All done") # This can mess with output when piped to a file
